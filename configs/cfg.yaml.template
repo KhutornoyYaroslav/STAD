@@ -1,0 +1,7 @@
+MODEL:
+  BACKBONE2D:
+    ARCHITECTURE: yolov8m
+    FREEZE: False
+    PRETRAINED_WEIGHTS: https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8m.pt
+  DEVICE: cuda
+OUTPUT_DIR: outputs/test
