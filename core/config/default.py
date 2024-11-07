@@ -16,6 +16,15 @@ _CFG.MODEL.BACKBONE2D.ARCHITECTURE = "yolov8m"
 _CFG.MODEL.BACKBONE2D.PRETRAINED_WEIGHTS = "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8m.pt"
 _CFG.MODEL.BACKBONE2D.FREEZE = False
 
+# ---------------------------------------------------------------------------- #
+# Head
+# ---------------------------------------------------------------------------- #
+_CFG.MODEL.HEAD = CN()
+_CFG.MODEL.HEAD.ARCHITECTURE = "yolov8"
+_CFG.MODEL.HEAD.PRETRAINED_WEIGHTS = "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8m.pt"
+_CFG.MODEL.HEAD.FREEZE = False
+_CFG.MODEL.HEAD.NUM_CLASSES = 80
+
 # # -----------------------------------------------------------------------------
 # # INPUT
 # # -----------------------------------------------------------------------------

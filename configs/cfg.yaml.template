@@ -4,4 +4,9 @@ MODEL:
     FREEZE: False
     PRETRAINED_WEIGHTS: https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8m.pt
   DEVICE: cuda
+  HEAD:
+    ARCHITECTURE: yolov8
+    FREEZE: False
+    NUM_CLASSES: 80
+    PRETRAINED_WEIGHTS: https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8m.pt
 OUTPUT_DIR: outputs/test
