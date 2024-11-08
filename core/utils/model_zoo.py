@@ -1,6 +1,7 @@
 import os
 import sys
 import torch
+from urllib import parse, request
 from core.utils.dist_util import is_main_process, synchronize
 try:
     from torch.hub import download_url_to_file
@@ -42,6 +43,23 @@ def load_state_dict_from_url(url, map_location='cpu'):
     return torch.load(cached_file, map_location=map_location)
 
 
+def is_url(url: str, try_download: bool = False):
+    try:
+        url = str(url)
+        result = parse.urlparse(url)
+        assert all([result.scheme, result.netloc])
+        if try_download:
+            with request.urlopen(url) as response:
+                return response.getcode() == 200
+        return True
+    except Exception:
+        return False
+
+
 def load_state_dict(url_or_file: str, map_location='cpu'):
-    f = url_or_file if os.path.isfile(url_or_file) else cache_url(url_or_file)
-    return torch.load(f, map_location=map_location)
+    if is_url(url_or_file):
+        return torch.load(cache_url(url_or_file), map_location=map_location)
+    elif os.path.isfile(url_or_file):
+        return torch.load(url_or_file, map_location=map_location)
+    else:
+        raise ValueError(f"'url_or_file' must be url or path to file")
