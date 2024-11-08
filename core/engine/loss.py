@@ -109,7 +109,7 @@ class DetectionLoss:
     def __call__(self, preds, batch):
         # preds - raw outputs from yolov8 head - tuple (y, x)
         # batch - dict with:
-        #   batch["batch_idx"] with shape (n_targets, n_images_in_batch)
+        #   batch["batch_idx"] with shape (n_targets, 1)
         #   batch["bboxes"] with shape (n_targets, 4)
         #   batch["cls"] with shape (n_targets, num_classes)
 
