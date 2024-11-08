@@ -4,8 +4,8 @@ import torch.nn as nn
 from typing import List
 from core.config import CfgNode
 from core.modeling.backbone2d.yolov8 import Conv
-from ultralytics.utils.tal import dist2bbox, make_anchors # TODO: make own copy
 from core.utils.model_zoo import load_state_dict
+from core.utils.tal import make_anchors, dist2bbox
 
 
 class DFL(nn.Module):
@@ -105,7 +105,8 @@ class Detect(nn.Module):
         """Initialize Detect() biases, WARNING: requires stride availability."""
         for a, b, s in zip(self.cv2, self.cv3, self.stride):
             a[-1].bias.data[:] = 1.0  # box
-            b[-1].bias.data[: self.nc] = math.log(5 / self.nc / (640 / s) ** 2)  # cls (.01 objects, 80 classes, 640 img) # TODO: 640 !
+            # TODO: why 640 as magic number! what to do if (H != W)?
+            b[-1].bias.data[: self.nc] = math.log(5 / self.nc / (640 / s) ** 2) # cls (.01 objects, 80 classes, 640 img)
 
     def decode_bboxes(self, bboxes, anchors):
         """Decode bounding boxes."""

@@ -30,7 +30,7 @@ def build_stad(cfg: CfgNode) -> nn.Module:
     features = backbone2d(x)
     for f in features:
         channels.append(f.shape[1])
-        strides.append(x.shape[-2] / f.shape[-2])  # TODO: make in for images with H != W
+        strides.append(x.shape[-2] / f.shape[-2])
 
     # build head
     head = build_head(cfg, channels=channels, strides=strides)
