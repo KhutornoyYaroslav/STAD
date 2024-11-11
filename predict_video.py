@@ -4,7 +4,7 @@ import torch
 # import logging
 import argparse
 import cv2 as cv
-# import numpy as np
+import numpy as np
 # from tqdm import tqdm
 # from core.config import cfg, skeleton
 # from core.utils.logger import setup_logger
@@ -13,18 +13,9 @@ import cv2 as cv
 # from core.utils.checkpoint import CheckPointer
 from core.config import cfg
 from core.modeling.head.yolov8 import Detect
-
-from core.data.transforms.transforms import (
-    ConvertFromInts,
-    Normalize,
-    Standardize,
-    ToTensor,
-    Resize,
-    ConvertColor
-)
-
 from core.utils.ops import non_max_suppression
 from core.modeling.model.stad import build_stad
+from core.data.transforms import build_transforms
 
 
 def main() -> int:
@@ -54,7 +45,6 @@ def main() -> int:
     device = torch.device(cfg.MODEL.DEVICE)
 
     # create model
-    # model = load_model(cfg, args)
     model = build_stad(cfg)
     model = model.to(device)
     model.eval()
@@ -65,7 +55,7 @@ def main() -> int:
         print("Error opening video stream or file")
         return -1
 
-    IMG_SIZE = (320, 160)
+    transforms = build_transforms(cfg, False)
 
     while cap.isOpened():
         ret, image = cap.read()
@@ -80,14 +70,14 @@ def main() -> int:
 
         detects = []
         with torch.no_grad():
-            input, _, _ = Resize(IMG_SIZE)(image)
-            input, _, _ = ConvertFromInts()(input)
-            input, _, _ = Normalize()(input)
-            # input, _, _ = Standardize()(input)
-            input, _, _ = ConvertColor("BGR", "RGB")(input)
-            input, _, _ = ToTensor()(input)
+            data = {
+                "img": np.expand_dims(image.copy(), 0)
+            }
+            data = transforms(data)
 
-            out_y, _ = model(input.unsqueeze(0).to(device))
+            inputs = data["img"]
+            INPUT_IMG_SIZE = inputs.shape[-1:-3:-1]
+            out_y, _ = model(inputs.to(device))
 
             # out_y = out_y.permute(0, 2, 1)
             # outputs = Detect.postprocess(out_y, max_det=300, nc=80)
@@ -100,11 +90,11 @@ def main() -> int:
                 print(det)
             x, y, w, h, conf, class_idx = det
 
-            img_h, img_w, _ = image.shape
-            x = (x / IMG_SIZE[0]) * img_w
-            y = (y / IMG_SIZE[1]) * img_h
-            w = (w / IMG_SIZE[0]) * img_w
-            h = (h / IMG_SIZE[1]) * img_h
+            img_h, img_w  = image.shape[:2]
+            x = (x / INPUT_IMG_SIZE[0]) * img_w
+            y = (y / INPUT_IMG_SIZE[1]) * img_h
+            w = (w / INPUT_IMG_SIZE[0]) * img_w
+            h = (h / INPUT_IMG_SIZE[1]) * img_h
             x = int(x)
             y = int(y)
             w = int(w)
