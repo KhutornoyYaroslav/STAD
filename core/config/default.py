@@ -25,12 +25,15 @@ _CFG.MODEL.HEAD.PRETRAINED_WEIGHTS = "https://github.com/ultralytics/assets/rele
 _CFG.MODEL.HEAD.FREEZE = False
 _CFG.MODEL.HEAD.NUM_CLASSES = 80
 
-# # -----------------------------------------------------------------------------
-# # INPUT
-# # -----------------------------------------------------------------------------
-# _CFG.INPUT = CN()
-# _CFG.INPUT.MAKE_DIVISIBLE_BY = 8
-# _CFG.INPUT.IMAGE_SIZE = (256, 256)
+# -----------------------------------------------------------------------------
+# Input
+# -----------------------------------------------------------------------------
+_CFG.INPUT = CN()
+_CFG.INPUT.IMAGE_SIZE = [512, 512]
+_CFG.INPUT.PIXEL_MEAN = [0, 0, 0]
+_CFG.INPUT.PIXEL_SCALE = [255, 255, 255]
+_CFG.INPUT.MAKE_DIVISIBLE_BY = 32
+
 
 # # -----------------------------------------------------------------------------
 # # Dataset
