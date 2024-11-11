@@ -30,18 +30,14 @@ class CheckData(BaseTransform):
             data["img"] = np.asarray(data["img"])
             if not data["img"].ndim == 4:
                 raise ValueError("Expected 4D array in data['img']")
-        if "bbox" in data:
-            data["bbox"] = np.asarray(data["bbox"])
-            if not data["bbox"].ndim == 2 or not data["bbox"].shape[-1] == 4:
-                raise ValueError("Expected shape (num_targets, 4) in data['bbox']")
+        if "box" in data:
+            data["box"] = np.asarray(data["box"])
+            if not data["box"].ndim == 3 or not data["box"].shape[-1] == 4:
+                raise ValueError("Expected shape (T, N, 4) in data['box']")
         if "cls" in data:
             data["cls"] = np.asarray(data["cls"])
-            if not data["cls"].ndim == 2:
-                raise ValueError("Expected 2D array in data['cls']")
-        if "imgidx" in data:
-            data["imgidx"] = np.asarray(data["imgidx"])
-            if not data["imgidx"].ndim == 2 or not data["imgidx"].shape[-1] == 1:
-                raise ValueError("Expected shape (num_targets, 1) in data['imgidx']")
+            if not data["cls"].ndim == 3:
+                raise ValueError("Expected 3D array in data['cls']")
         return data
 
 
@@ -75,9 +71,9 @@ class ConvertColor(BaseTransform):
 class Resize(BaseTransform):
     def __init__(self,
                  size: Tuple[int, int],
-                 bbox_normalized: bool = False) -> None:
+                 box_normalized: bool = True) -> None:
         self.size = size
-        self.bbox_normalized = bbox_normalized
+        self.box_normalized = box_normalized
 
     @staticmethod
     def _apply_img(img: np.ndarray, size: Tuple[int, int]) -> np.ndarray:
@@ -87,19 +83,19 @@ class Resize(BaseTransform):
         return np.stack(res, 0)
 
     @staticmethod
-    def _apply_bbox(bbox: np.ndarray,
+    def _apply_box(box: np.ndarray,
                     src_size: Tuple[int, int],
                     dst_size: Tuple[int, int]) -> None:
-        bbox[:, ::2] = bbox[:, ::2] * dst_size[0] / src_size[0]
-        bbox[:, 1::2] = bbox[:, 1::2] * dst_size[1] / src_size[1]
+        box[..., ::2] = box[..., ::2] * dst_size[0] / src_size[0]
+        box[..., 1::2] = box[..., 1::2] * dst_size[1] / src_size[1]
 
     def __call__(self, data: Dict[str, ArrayLike]) -> Dict[str, ArrayLike]:
         if "img" in data:
             src_size = data["img"].shape[-2:-4:-1] # (T, H, W, C) -> (W, H)
             data["img"] = self._apply_img(data["img"], self.size)
-            if "bbox" in data and not self.bbox_normalized:
+            if "box" in data and not self.box_normalized:
                 if src_size is not None:
-                    self._apply_bbox(data["bbox"], src_size, self.size)
+                    self._apply_box(data["box"], src_size, self.size)
         return data
 
 
@@ -108,19 +104,19 @@ class MakeDivisibleBy(BaseTransform):
         self.factor = factor
 
     @staticmethod
-    def _apply_bbox(bbox: np.ndarray,
+    def _apply_box(box: np.ndarray,
                     src_size: Tuple[int, int],
                     dst_size: Tuple[int, int]) -> None:
-        bbox[:, ::2] = bbox[:, ::2] * dst_size[0] / src_size[0]
-        bbox[:, 1::2] = bbox[:, 1::2] * dst_size[1] / src_size[1]
+        box[..., ::2] = box[..., ::2] * dst_size[0] / src_size[0]
+        box[..., 1::2] = box[..., 1::2] * dst_size[1] / src_size[1]
 
     def __call__(self, data: Dict[str, ArrayLike]) -> Dict[str, ArrayLike]:
         if "img" in data:
             src_size = data["img"].shape[-2:-4:-1] # (T, H, W, C) -> (W, H)
             data["img"] = make_divisible_by(data["img"], self.factor)
             dst_size = data["img"].shape[-2:-4:-1] # (T, H, W, C) -> (W, H)
-            if "bbox" in data:
-                self._apply_bbox(data["bbox"], src_size, dst_size)
+            if "box" in data:
+                self._apply_box(data["box"], src_size, dst_size)
         return data
 
 
@@ -128,8 +124,8 @@ class ToFloat(BaseTransform):
     def __call__(self, data: Dict[str, ArrayLike]) -> Dict[str, ArrayLike]:
         if "img" in data:
             data["img"] = data["img"].astype(np.float32)
-        if "bbox" in data:
-            data["bbox"] = data["bbox"].astype(np.float32)
+        if "box" in data:
+            data["box"] = data["box"].astype(np.float32)
         if "cls" in data:
             data["cls"] = data["cls"].astype(np.float32)
         return data
@@ -166,11 +162,9 @@ class ToTensor(BaseTransform):
     def __call__(self, data: Dict[str, ArrayLike]) -> Dict[str, ArrayLike]:
         if "img" in data: # (T, H, W, C) -> (T, C, H, W)
             data["img"] = torch.from_numpy(data["img"]).type(torch.float32).permute(0, 3, 1, 2)
-        if "bbox" in data:
-            data["bbox"] = torch.from_numpy(data["bbox"]).type(torch.float32)
+        if "box" in data:
+            data["box"] = torch.from_numpy(data["box"]).type(torch.float32)
         if "cls" in data:
             data["cls"] = torch.from_numpy(data["cls"]).type(torch.float32)
-        if "imgidx" in data:
-            data["imgidx"] = torch.from_numpy(data["imgidx"]).type(torch.long)
 
         return data
