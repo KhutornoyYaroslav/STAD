@@ -33,34 +33,28 @@ _CFG.INPUT.IMAGE_SIZE = [512, 512]
 _CFG.INPUT.PIXEL_MEAN = [0, 0, 0]
 _CFG.INPUT.PIXEL_SCALE = [255, 255, 255]
 
-# # -----------------------------------------------------------------------------
-# # Dataset
-# # -----------------------------------------------------------------------------
-# _CFG.DATASET = CN()
-# _CFG.DATASET.TYPE = ''
-# _CFG.DATASET.TRAIN_ROOT_DIRS = []
-# _CFG.DATASET.TRAIN_SUBDIR_LISTS = []
-# _CFG.DATASET.TEST_ROOT_DIRS = []
-# _CFG.DATASET.TEST_SUBDIR_LISTS = []
-# _CFG.DATASET.TEST_OD_ROOT_DIRS = []
-# _CFG.DATASET.SEQUENCE_LENGTH = 16
-# _CFG.DATASET.SEQUENCE_STRIDE = 1
-# _CFG.DATASET.SUBDIR_INPUTS = 'raw'
-# _CFG.DATASET.METADATA_PATH = ''
-# _CFG.DATASET.OD_GOP_SIZE = 32
-# _CFG.DATASET.OD_STAGE = 5
+# -----------------------------------------------------------------------------
+# Dataset
+# -----------------------------------------------------------------------------
+_CFG.DATASET = CN()
+_CFG.DATASET.PAD_LABELS_TO = 32
+_CFG.DATASET.TRAIN_IMAGE_PATHS = []
+_CFG.DATASET.TRAIN_LABEL_PATHS = []
+_CFG.DATASET.VALID_IMAGE_PATHS = []
+_CFG.DATASET.VALID_LABEL_PATHS = []
 
-# # -----------------------------------------------------------------------------
-# # DataLoader
-# # -----------------------------------------------------------------------------
-# _CFG.DATA_LOADER = CN()
-# _CFG.DATA_LOADER.NUM_WORKERS = 1
-# _CFG.DATA_LOADER.PIN_MEMORY = True
+# -----------------------------------------------------------------------------
+# DataLoader
+# -----------------------------------------------------------------------------
+_CFG.DATA_LOADER = CN()
+_CFG.DATA_LOADER.NUM_WORKERS = 1
+_CFG.DATA_LOADER.PIN_MEMORY = True
 
-# # ---------------------------------------------------------------------------- #
-# # Solver
-# # ---------------------------------------------------------------------------- #
-# _CFG.SOLVER = CN()
+# ---------------------------------------------------------------------------- #
+# Solver
+# ---------------------------------------------------------------------------- #
+_CFG.SOLVER = CN()
+_CFG.SOLVER.BATCH_SIZE = 1
 # _CFG.SOLVER.LAMBDAS = [85, 170, 380, 840]
 # _CFG.SOLVER.PL_MODEL = 'vgg'
 # _CFG.SOLVER.PL_LAYERS = ['1', '2', '3', '4']

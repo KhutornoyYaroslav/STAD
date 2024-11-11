@@ -1,3 +1,12 @@
+DATASET:
+  PAD_LABELS_TO: 32
+  TRAIN_IMAGE_PATHS: []
+  TRAIN_LABEL_PATHS: []
+  VALID_IMAGE_PATHS: []
+  VALID_LABEL_PATHS: []
+DATA_LOADER:
+  NUM_WORKERS: 1
+  PIN_MEMORY: True
 INPUT:
   IMAGE_SIZE: [256, 526]
   PIXEL_MEAN: [0, 0, 0]
@@ -14,3 +23,5 @@ MODEL:
     NUM_CLASSES: 80
     PRETRAINED_WEIGHTS: https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8m.pt
 OUTPUT_DIR: outputs/test
+SOLVER:
+  BATCH_SIZE: 1
