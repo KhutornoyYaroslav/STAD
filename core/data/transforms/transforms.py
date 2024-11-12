@@ -140,9 +140,20 @@ class Normalize(BaseTransform):
 
     def __call__(self, data: Dict[str, ArrayLike]) -> Dict[str, ArrayLike]:
         if "img" in data:
-            data["img"][..., 0] = (data["img"][..., 0] - self.mean_rgb[0]) / self.scale_rgb[0]
-            data["img"][..., 1] = (data["img"][..., 1] - self.mean_rgb[1]) / self.scale_rgb[1]
-            data["img"][..., 2] = (data["img"][..., 2] - self.mean_rgb[2]) / self.scale_rgb[2]
+            data["img"] = (data["img"] - self.mean_rgb) / self.scale_rgb
+        return data
+
+
+class Denormalize(BaseTransform):
+    def __init__(self,
+                 mean_rgb: Tuple[float, float, float] = [0.485, 0.456, 0.406],
+                 scale_rgb: Tuple[float, float, float] = [0.229, 0.224, 0.225]) -> None:
+        self.mean_rgb = mean_rgb
+        self.scale_rgb = scale_rgb
+
+    def __call__(self, data: Dict[str, ArrayLike]) -> Dict[str, ArrayLike]:
+        if "img" in data:
+            data["img"] = data["img"] * self.scale_rgb[0] + self.mean_rgb[0]
         return data
 
 
