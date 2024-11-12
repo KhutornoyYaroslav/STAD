@@ -85,9 +85,10 @@ _CFG.SOLVER.TAL_TOPK = 10
 # ---------------------------------------------------------------------------- #
 _CFG.OUTPUT_DIR = 'outputs/test'
 
-# # ---------------------------------------------------------------------------- #
-# # Tensorboard
-# # ---------------------------------------------------------------------------- #
-# _CFG.TENSORBOARD = CN()
-# _CFG.TENSORBOARD.BEST_SAMPLES_NUM = 16
-# _CFG.TENSORBOARD.WORST_SAMPLES_NUM = 16
+# ---------------------------------------------------------------------------- #
+# Tensorboard
+# ---------------------------------------------------------------------------- #
+_CFG.TENSORBOARD = CN()
+_CFG.TENSORBOARD.BEST_SAMPLES_NUM = 32
+_CFG.TENSORBOARD.CONF_THRESH = 0.5
+_CFG.TENSORBOARD.WORST_SAMPLES_NUM = 32
