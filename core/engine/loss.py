@@ -79,23 +79,23 @@ class DetectionLoss:
         self.bbox_loss = BboxLoss(self.dfl_bins).to(device)
         self.proj = torch.arange(self.dfl_bins, dtype=torch.float, device=device)
 
-    def preprocess(self, targets, batch_size, scale_tensor):
-        """Preprocesses the target counts and matches with the input batch size to output a tensor."""
-        nl, ne = targets.shape # (n_targets, 1 + 4 + num_classes)
-        if nl == 0:
-            out = torch.zeros(batch_size, 0, ne - 1, device=self.device)
-        else:
-            i = targets[:, 0]  # images indexes
-            _, counts = i.unique(return_counts=True)
-            counts = counts.to(dtype=torch.int32)
-            out = torch.zeros(batch_size, counts.max(), ne - 1, device=self.device)
-            for j in range(batch_size):
-                matches = i == j
-                n = matches.sum()
-                if n:
-                    out[j, :n] = targets[matches, 1:] # (bs, num_max_boxes, 4 + num_classes)
-            out[..., :4] = xywh2xyxy(out[..., :4].mul_(scale_tensor))
-        return out
+    # def preprocess(self, targets, batch_size, scale_tensor):
+    #     """Preprocesses the target counts and matches with the input batch size to output a tensor."""
+    #     nl, ne = targets.shape # (n_targets, 1 + 4 + num_classes)
+    #     if nl == 0:
+    #         out = torch.zeros(batch_size, 0, ne - 1, device=self.device)
+    #     else:
+    #         i = targets[:, 0]  # images indexes
+    #         _, counts = i.unique(return_counts=True)
+    #         counts = counts.to(dtype=torch.int32)
+    #         out = torch.zeros(batch_size, counts.max(), ne - 1, device=self.device)
+    #         for j in range(batch_size):
+    #             matches = i == j
+    #             n = matches.sum()
+    #             if n:
+    #                 out[j, :n] = targets[matches, 1:] # (bs, num_max_boxes, 4 + num_classes)
+    #         out[..., :4] = xywh2xyxy(out[..., :4].mul_(scale_tensor))
+    #     return out
 
     def bbox_decode(self, anchor_points, pred_dist):
         """Decode predicted object bounding box coordinates from anchor points and distribution."""
@@ -106,13 +106,7 @@ class DetectionLoss:
             # pred_dist = (pred_dist.view(b, a, c // 4, 4).softmax(2) * self.proj.type(pred_dist.dtype).view(1, 1, -1, 1)).sum(2)
         return dist2bbox(pred_dist, anchor_points, xywh=False)
 
-    def __call__(self, preds, batch):
-        # preds - raw outputs from yolov8 head - tuple (y, x)
-        # batch - dict with:
-        #   batch["batch_idx"] with shape (n_targets, 1)
-        #   batch["bboxes"] with shape (n_targets, 4)
-        #   batch["cls"] with shape (n_targets, num_classes)
-
+    def __call__(self, preds, targets):
         """Calculate the sum of the loss for box, cls and dfl multiplied by batch size."""
         loss = torch.zeros(3, device=self.device)  # box, cls, dfl
         feats = preds[1] if isinstance(preds, tuple) else preds
@@ -130,10 +124,13 @@ class DetectionLoss:
 
         # Targets
         # (n_targets, 1 + 4 + num_classes) = (n_targets, 1) + (n_targets, 4) + (n_targets, num_classes)
-        targets = torch.cat((batch["batch_idx"].view(-1, 1), batch["bboxes"], batch["cls"]), 1)
+        # targets = torch.cat((batch["batch_idx"].view(-1, 1), batch["bboxes"], batch["cls"]), 1)
         # (bs, n_max_boxes, cls + 4), scale_tensor = (w, h, w, h)
-        targets = self.preprocess(targets.to(self.device), batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
-        gt_bboxes, gt_scores = targets.split((4, self.nc), 2)  # xyxy, num_classes
+        # targets = self.preprocess(targets.to(self.device), batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
+
+        gt_bboxes, gt_scores = targets.split((4, self.nc), 2)  # xywh, num_classes
+        gt_bboxes = xywh2xyxy(gt_bboxes) # xyxy
+        gt_bboxes = gt_bboxes.mul_(imgsz[[1, 0, 1, 0]]) # scaled to image size
         mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0.0)
 
         # Pboxes
