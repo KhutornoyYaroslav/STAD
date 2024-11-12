@@ -101,7 +101,7 @@ def main():
 
     # create config backup
     with open(os.path.join(cfg.OUTPUT_DIR, 'cfg.yaml'), "w") as cfg_dump:
-        cfg_dump.write(str(cfg))
+        ret = cfg_dump.write(str(cfg))
 
     # train model
     model = train_model(cfg, args)

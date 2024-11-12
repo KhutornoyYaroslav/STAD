@@ -11,10 +11,8 @@ from torch.utils.data import DataLoader
 from core.utils.checkpoint import CheckPointer
 from torch.optim.lr_scheduler import LRScheduler
 from core.engine.loss import DetectionLoss
-
-# from core.utils.colors import get_rgb_colors
+from torch.utils.tensorboard import SummaryWriter
 # from core.engine.validation import do_validation
-# from torch.utils.tensorboard import SummaryWriter
 # from core.utils.tensorboard import update_tensorboard_image_samples
 # from core.data.transforms.transforms import (
 #     FromTensor,
@@ -22,6 +20,7 @@ from core.engine.loss import DetectionLoss
 #     ConvertToInts,
 #     TransformCompose
 # )
+from core.utils.tensorboard import add_metrics
 
 
 # def calc_mean_metric(metric: np.ndarray, ignore_indexes: list = []):
@@ -118,18 +117,18 @@ def do_train(cfg: CfgNode,
     # set model to train mode
     model.train()
 
-    # # create tensorboard writer
-    # if args.use_tensorboard:
-    #     summary_writer = SummaryWriter(log_dir=os.path.join(cfg.OUTPUT_DIR, 'tf_logs'))
-    # else:
-    #     summary_writer = None
+    # create tensorboard writer
+    if args.use_tensorboard:
+        summary_writer = SummaryWriter(log_dir=os.path.join(cfg.OUTPUT_DIR, 'tf_logs'))
+    else:
+        summary_writer = None
 
     # prepare to train
     iters_per_epoch = len(data_loader_train)
     start_epoch = arguments["epoch"]
     end_epoch = cfg.SOLVER.MAX_EPOCH
     total_steps = iters_per_epoch * cfg.SOLVER.MAX_EPOCH
-    logger.info("Iterations per epoch: {0}. Total steps: {1}. Start epoch: {2}".format(iters_per_epoch, total_steps, start_epoch))
+    logger.info("Iterations per epoch: {0}. Total steps: {1}. Start epoch: {2}".format(iters_per_epoch, total_steps, start_epoch + 1))
 
     # create metrics
     det_loss = DetectionLoss(num_classes=model.get_num_classes(),
@@ -146,17 +145,16 @@ def do_train(cfg: CfgNode,
         arguments["epoch"] = epoch + 1
 
         # create progress bar
-        print(('\n' + '%10s' * 4) % ('epoch', 'gpu_mem', 'lr', 'loss'))
+        print(('\n' + '%10s' * 7) % ('epoch', 'gpu_mem', 'lr', 'loss', 'loss_box', 'loss_dfl', 'loss_cls'))
         pbar = enumerate(data_loader_train)
         pbar = tqdm(pbar, total=len(data_loader_train))
 
         # create stats
         stats = {
             'loss_sum': 0,
-            # 'dice_sum': 0,
-            # 'jaccard_sum': 0,
-            # 'precision_sum': 0,
-            # 'recall_sum': 0,
+            'loss_box_sum': 0,
+            'loss_dfl_sum': 0,
+            'loss_cls_sum': 0,
             # 'best_samples': [],
             # 'worst_samples': []
         }
@@ -166,26 +164,25 @@ def do_train(cfg: CfgNode,
             global_step = epoch * iters_per_epoch + iteration
 
             # get data
-            images = data_entry["img"] # (B, T, C, H, W)
-            bboxes = data_entry["box"] # (B, T, max_targets, 4)
-            classes = data_entry["cls"] # (B, T, max_targets, num_classes)
+            images = data_entry["img"]                              # (B, T, C, H, W)
+            bboxes = data_entry["box"]                              # (B, T, max_targets, 4)
+            classes = data_entry["cls"]                             # (B, T, max_targets, num_classes)
 
-            cur_image = images[:, -1] # (B, C, H, W)
-            cur_bboxes = bboxes[:, -1] # (B, max_targets, 4)
-            cur_classes = classes[:, -1] # (B, max_targets, num_classes)
-            cur_targets = torch.cat([cur_bboxes, cur_classes], -1) # (B, max_targets, 4 + num_classes)
+            cur_image = images[:, -1]                               # (B, C, H, W)
+            cur_bboxes = bboxes[:, -1]                              # (B, max_targets, 4)
+            cur_classes = classes[:, -1]                            # (B, max_targets, num_classes)
+            cur_targets = torch.cat([cur_bboxes, cur_classes], -1)  # (B, max_targets, 4 + num_classes)
 
             cur_image = cur_image.to(device)
             cur_targets = cur_targets.to(device)
 
             # forward model
-            output = model(cur_image) # 3 x (B, C, Hi, Wi)
+            output = model(cur_image)                               # 3 x (B, C, Hi, Wi)
 
             # calculate loss
             losses = det_loss(output, cur_targets)
             loss = losses[0]
-            # loss_box, loss_cls, loss_dfl = losses[1]
-            # print(losses[1])
+            loss_box, loss_cls, loss_dfl = losses[1]
 
             # optimize model
             optimizer.zero_grad()
@@ -201,10 +198,9 @@ def do_train(cfg: CfgNode,
 
             # update stats
             stats['loss_sum'] += loss.item()
-            # stats['dice_sum'] += torch.mean(dice, 0).cpu().numpy()
-            # stats['jaccard_sum'] += torch.mean(jaccard, 0).cpu().numpy()
-            # stats['precision_sum'] += torch.mean(precision, 0).cpu().numpy()
-            # stats['recall_sum'] += torch.mean(recall, 0).cpu().numpy()
+            stats['loss_box_sum'] += loss_box.item()
+            stats['loss_dfl_sum'] += loss_dfl.item()
+            stats['loss_cls_sum'] += loss_cls.item()
 
             # # update best samples
             # update_tensorboard_image_samples(limit=cfg.TENSORBOARD.BEST_SAMPLES_NUM,
@@ -232,16 +228,13 @@ def do_train(cfg: CfgNode,
 
             # update progress bar
             mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)
-
-            # dice_avg = stats['dice_sum'] / (iteration + 1)
-            # jaccard_avg = stats['jaccard_sum'] / (iteration + 1)
-            # precision_avg = stats['precision_sum'] / (iteration + 1)
-            # recall_avg = stats['recall_sum'] / (iteration + 1)
-
-            s = ('%10s' * 2 + '%10.4g' * 2) % ('%g/%g' % (epoch + 1, end_epoch),
+            s = ('%10s' * 2 + '%10.4g' * 5) % ('%g/%g' % (epoch + 1, end_epoch),
                                                mem,
                                                optimizer.param_groups[0]["lr"],
                                                stats['loss_sum'] / (iteration + 1),
+                                               stats['loss_box_sum'] / (iteration + 1),
+                                               stats['loss_dfl_sum'] / (iteration + 1),
+                                               stats['loss_cls_sum'] / (iteration + 1)
             )
             pbar.set_description(s)
 
@@ -285,18 +278,18 @@ def do_train(cfg: CfgNode,
         #                               cfg.DATASET.CLASS_LABELS,
         #                               False)
 
-        # # save epoch results
-        # if epoch % args.save_step == 0:
-        #     checkpointer.save("model_{:06d}".format(global_step), **arguments)
-        #     if summary_writer:
-        #         update_summary_writer(cfg,
-        #                               summary_writer,
-        #                               stats,
-        #                               iteration + 1,
-        #                               optimizer,
-        #                               global_step,
-        #                               cfg.DATASET.CLASS_LABELS,
-        #                               True)
+        # save epoch results
+        if epoch % args.save_step == 0:
+            checkpointer.save("model_{:06d}".format(global_step), **arguments)
+            if summary_writer:
+                scalars = {
+                    'loss': stats['loss_sum'] / (iteration + 1),
+                    'loss_box': stats['loss_box_sum'] / (iteration + 1),
+                    'loss_dfl': stats['loss_dfl_sum'] / (iteration + 1),
+                    'loss_cls': stats['loss_cls_sum'] / (iteration + 1),
+                    'lr': optimizer.param_groups[0]["lr"]
+                }
+                add_metrics(summary_writer, scalars, global_step, True)
 
     # save final model
     checkpointer.save("model_final", **arguments)
