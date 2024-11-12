@@ -13,89 +13,8 @@ from torch.optim.lr_scheduler import LRScheduler
 from core.engine.loss import DetectionLoss
 from torch.utils.tensorboard import SummaryWriter
 # from core.engine.validation import do_validation
-# from core.utils.tensorboard import update_tensorboard_image_samples
-# from core.data.transforms.transforms import (
-#     FromTensor,
-#     Denormalize,
-#     ConvertToInts,
-#     TransformCompose
-# )
-from core.utils.tensorboard import add_metrics
-
-
-# def calc_mean_metric(metric: np.ndarray, ignore_indexes: list = []):
-#     """
-#     Calculates mean of given metric.
-
-#     Parameters:
-#         metric : array
-#             Metric with shape (K), where K is number of classes.
-#         ignore_indexes : list
-#             List of class indexes to ignore for calculating.
-
-#     Returns:
-#         mean : float
-#             Resulting mean metric with shape (1)
-#     """
-#     idxs_to_mean = [idx for idx in list(range(metric.shape[0])) if idx not in ignore_indexes]
-
-#     return np.mean(metric[idxs_to_mean])
-
-
-# def update_summary_writer(cfg, summary_writer, stats, iterations, optimizer, global_step, class_labels, is_train: bool = True):
-#     domen = "train" if is_train else "val"
-#     with torch.no_grad():
-#         # lr
-#         if is_train:
-#             summary_writer.add_scalar('optimizer/lr', optimizer.param_groups[0]['lr'], global_step=global_step)
-
-#         # loss
-#         summary_writer.add_scalar(domen + '/loss', stats['loss_sum'] / iterations, global_step=global_step)
-
-#         # metrics mean for classes
-#         ignore_idxs = cfg.TENSORBOARD.METRICS_IGNORE_CLASS_IDXS
-#         summary_writer.add_scalar(domen + '/dice_mean', calc_mean_metric(stats['dice_sum'] / iterations, ignore_idxs), global_step=global_step)
-#         summary_writer.add_scalar(domen + '/jaccard_mean', calc_mean_metric(stats['jaccard_sum'] / iterations, ignore_idxs), global_step=global_step)
-#         summary_writer.add_scalar(domen + '/precision_mean', calc_mean_metric(stats['precision_sum'] / iterations, ignore_idxs), global_step=global_step)
-#         summary_writer.add_scalar(domen + '/recall_mean', calc_mean_metric(stats['recall_sum'] / iterations, ignore_idxs), global_step=global_step)
-
-#         # metrics for each class
-#         dice_dict = {}
-#         jaccard_dict = {}
-#         precision_dict = {}
-#         recall_dict = {}
-#         for idx, label in enumerate(class_labels):
-#             dice_dict[f"dice_{label}"] = stats['dice_sum'][idx] / iterations
-#             jaccard_dict[f"jaccard_{label}"] = stats['jaccard_sum'][idx] / iterations
-#             precision_dict[f"precision_{label}"] = stats['precision_sum'][idx] / iterations
-#             recall_dict[f"recall_{label}"] = stats['recall_sum'][idx] / iterations
-#         summary_writer.add_scalars(domen + '/dice', dice_dict, global_step=global_step)
-#         summary_writer.add_scalars(domen + '/jaccard', jaccard_dict, global_step=global_step)
-#         summary_writer.add_scalars(domen + '/precision', precision_dict, global_step=global_step)
-#         summary_writer.add_scalars(domen + '/recall', recall_dict, global_step=global_step)
-
-#         # images
-#         back_transforms = [
-#             FromTensor(),
-#             Denormalize(cfg.INPUT.PIXEL_MEAN, cfg.INPUT.PIXEL_SCALE),
-#             ConvertToInts()
-#         ]
-#         back_transforms = TransformCompose(back_transforms)
-
-#         if len(stats['best_samples']):
-#             tb_images = [s[1] for s in stats['best_samples']]
-#             image_grid = torch.concatenate(tb_images, dim=1)
-#             image_grid = back_transforms(image_grid)[0]
-#             summary_writer.add_image(domen + '/best_samples', image_grid, global_step=global_step, dataformats='HWC')
-
-#         if len(stats['worst_samples']):
-#             tb_images = [s[1] for s in stats['worst_samples']]
-#             image_grid = torch.concatenate(tb_images, dim=1)
-#             image_grid = back_transforms(image_grid)[0]
-#             summary_writer.add_image(domen + '/worst_samples', image_grid, global_step=global_step, dataformats='HWC')
-
-#         # save
-#         summary_writer.flush()
+from core.utils.tensorboard import add_metrics, select_samples
+from core.data.transforms.transforms import Denormalize, TransformCompose
 
 
 def do_train(cfg: CfgNode,
@@ -122,6 +41,11 @@ def do_train(cfg: CfgNode,
         summary_writer = SummaryWriter(log_dir=os.path.join(cfg.OUTPUT_DIR, 'tf_logs'))
     else:
         summary_writer = None
+
+    tb_img_transforms = [
+        Denormalize(cfg.INPUT.PIXEL_MEAN, cfg.INPUT.PIXEL_SCALE)
+    ]
+    tb_img_transforms = TransformCompose(tb_img_transforms)
 
     # prepare to train
     iters_per_epoch = len(data_loader_train)
@@ -155,8 +79,8 @@ def do_train(cfg: CfgNode,
             'loss_box_sum': 0,
             'loss_dfl_sum': 0,
             'loss_cls_sum': 0,
-            # 'best_samples': [],
-            # 'worst_samples': []
+            'best_samples': [],
+            'worst_samples': []
         }
 
         # iteration loop
@@ -177,10 +101,11 @@ def do_train(cfg: CfgNode,
             cur_targets = cur_targets.to(device)
 
             # forward model
-            output = model(cur_image)                               # 3 x (B, C, Hi, Wi)
+            output_y, output_x = model(cur_image)                   # 3 x (B, C, Hi, Wi)
+            output_y = output_y.permute(0, 2, 1)
 
             # calculate loss
-            losses = det_loss(output, cur_targets)
+            losses = det_loss(output_x, cur_targets)
             loss = losses[0]
             loss_box, loss_cls, loss_dfl = losses[1]
 
@@ -202,29 +127,19 @@ def do_train(cfg: CfgNode,
             stats['loss_dfl_sum'] += loss_dfl.item()
             stats['loss_cls_sum'] += loss_cls.item()
 
-            # # update best samples
-            # update_tensorboard_image_samples(limit=cfg.TENSORBOARD.BEST_SAMPLES_NUM,
-            #                                  accumulator=stats['best_samples'], 
-            #                                  input=input,
-            #                                  metric=torch.mean(loss, dim=(1, 2)), 
-            #                                  pred_labels=pred_labels, 
-            #                                  target_labels=target_labels,
-            #                                  min_metric_better=True,
-            #                                  class_colors=get_rgb_colors(num_classes, mean=cfg.INPUT.PIXEL_MEAN, scale=cfg.INPUT.PIXEL_SCALE),
-            #                                  blending_alpha=cfg.TENSORBOARD.ALPHA_BLENDING,
-            #                                  nonzero_factor=cfg.TENSORBOARD.NONZERO_CLASS_PERC)
-
-            # # update worst samples
-            # update_tensorboard_image_samples(limit=cfg.TENSORBOARD.WORST_SAMPLES_NUM,
-            #                                  accumulator=stats['worst_samples'], 
-            #                                  input=input,
-            #                                  metric=torch.mean(loss, dim=(1, 2)), 
-            #                                  pred_labels=pred_labels, 
-            #                                  target_labels=target_labels,
-            #                                  min_metric_better=False,
-            #                                  class_colors=get_rgb_colors(num_classes, mean=cfg.INPUT.PIXEL_MEAN, scale=cfg.INPUT.PIXEL_SCALE),
-            #                                  blending_alpha=cfg.TENSORBOARD.ALPHA_BLENDING,
-            #                                  nonzero_factor=cfg.TENSORBOARD.NONZERO_CLASS_PERC)
+            # select best samples
+            select_samples(limit=cfg.TENSORBOARD.BEST_SAMPLES_NUM,
+                           accumulator=stats['best_samples'],
+                           image=cur_image.detach(),
+                           targets=cur_targets.detach(),
+                           preds=output_y.detach(),
+                           metric=torch.rand((cur_image.shape[0], 1)).to(device), # TODO: stub
+                           conf_thresh=cfg.TENSORBOARD.CONF_THRESH,
+                           min_metric_better=False, # TODO: check
+                           image_transforms=tb_img_transforms)
+   
+            # select worst samples
+            # TODO:
 
             # update progress bar
             mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)
@@ -289,7 +204,11 @@ def do_train(cfg: CfgNode,
                     'loss_cls': stats['loss_cls_sum'] / (iteration + 1),
                     'lr': optimizer.param_groups[0]["lr"]
                 }
-                add_metrics(summary_writer, scalars, global_step, True)
+                samples = {
+                    'best_samples': stats['best_samples'],
+                    'worst_samples': stats['worst_samples']
+                }
+                add_metrics(summary_writer, scalars, samples, global_step, True)
 
     # save final model
     checkpointer.save("model_final", **arguments)
