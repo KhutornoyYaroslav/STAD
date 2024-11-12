@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from typing import List
 from core.config import CfgNode
 from core.modeling.head import build_head
 from core.modeling.backbone2d import build_backbone2d
@@ -17,6 +18,15 @@ class STAD(nn.Module):
         f = self.backbone2d(x)
         y = self.head(f)
         return y
+    
+    def get_num_classes(self) -> int:
+        return self.head.nc
+    
+    def get_strides(self) -> List[float]:
+        return self.head.stride
+    
+    def get_dfl_num_bins(self) -> int:
+        return self.head.dfl_bins
 
 
 def build_stad(cfg: CfgNode) -> nn.Module:
