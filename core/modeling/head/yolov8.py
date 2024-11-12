@@ -1,5 +1,6 @@
 import math
 import torch
+import logging
 import torch.nn as nn
 from typing import List
 from core.config import CfgNode
@@ -153,6 +154,7 @@ def initialize_weights(model: nn.Module):
 def build_yolov8(cfg: CfgNode,
                  channels: List[int],
                  strides: List[float]) -> nn.Module:
+    logger = logging.getLogger('CORE')
     cfg_head = cfg.MODEL.HEAD
 
     model = Detect(nc=cfg_head.NUM_CLASSES, ch=channels)
@@ -186,8 +188,8 @@ def build_yolov8(cfg: CfgNode,
             state_dict = yolo_head_state_dict
 
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
-        print("Head pretrained weights loaded: {0} missing, {1} unexpected".
-              format(len(missing_keys), len(unexpected_keys)))
+        logger.info("Head pretrained weights loaded: {0} missing, {1} unexpected".
+                    format(len(missing_keys), len(unexpected_keys)))
         assert not len(missing_keys)
 
     if cfg_head.FREEZE:

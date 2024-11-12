@@ -1,4 +1,5 @@
 import torch
+import logging
 from torch import nn
 from typing import Optional, Tuple, List
 from core.config import CfgNode
@@ -156,6 +157,7 @@ class YOLOv8(nn.Module):
 
 
 def build_yolov8(cfg: CfgNode) -> nn.Module:
+    logger = logging.getLogger('CORE')
     cfg_bb = cfg.MODEL.BACKBONE2D
 
     version = cfg_bb.ARCHITECTURE[len("yolov8"):]
@@ -187,8 +189,8 @@ def build_yolov8(cfg: CfgNode) -> nn.Module:
                 state_dict = state_dict.state_dict()
 
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
-        print("Backbone2d pretrained weights loaded: {0} missing, {1} unexpected".
-              format(len(missing_keys), len(unexpected_keys)))
+        logger.info("Backbone2d pretrained weights loaded: {0} missing, {1} unexpected".
+                    format(len(missing_keys), len(unexpected_keys)))
         assert not len(missing_keys)
 
     if cfg_bb.FREEZE:
