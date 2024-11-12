@@ -22,6 +22,13 @@ MODEL:
     FREEZE: False
     NUM_CLASSES: 80
     PRETRAINED_WEIGHTS: https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8m.pt
+  PRETRAINED_WEIGHTS:
 OUTPUT_DIR: outputs/test
 SOLVER:
   BATCH_SIZE: 1
+  LOSS_BOX_WEIGHT: 1.0
+  LOSS_CLS_WEIGHT: 1.0
+  LOSS_DFL_WEIGHT: 1.0
+  LR: 0.0001
+  MAX_EPOCH: 10
+  TAL_TOPK: 10

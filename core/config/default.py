@@ -7,6 +7,7 @@ _CFG = CN()
 # ---------------------------------------------------------------------------- #
 _CFG.MODEL = CN()
 _CFG.MODEL.DEVICE = "cuda"
+_CFG.MODEL.PRETRAINED_WEIGHTS = ""
 
 # ---------------------------------------------------------------------------- #
 # Backbone2d
@@ -60,7 +61,12 @@ _CFG.SOLVER.BATCH_SIZE = 1
 # _CFG.SOLVER.PL_LAYERS = ['1', '2', '3', '4']
 # _CFG.SOLVER.PL_LAMBDA = 1e+1
 # _CFG.SOLVER.DIST_LAMBDA = 1.0
-# _CFG.SOLVER.LR = 1e-4
+_CFG.SOLVER.LOSS_BOX_WEIGHT = 1.0
+_CFG.SOLVER.LOSS_CLS_WEIGHT = 1.0
+_CFG.SOLVER.LOSS_DFL_WEIGHT = 1.0
+_CFG.SOLVER.LR = 1e-4
+_CFG.SOLVER.MAX_EPOCH = 10
+_CFG.SOLVER.TAL_TOPK = 10
 # _CFG.SOLVER.STAGES = [
 #     ['1', 'inter', 'single', 'me', 'none', '0.0001', '1', 'vgg'],
 #     ['1', 'inter', 'single', 'me', 'me', '0.0001', '3', 'vgg'],
