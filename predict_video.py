@@ -16,6 +16,7 @@ from core.modeling.head.yolov8 import Detect
 from core.utils.ops import non_max_suppression
 from core.modeling.model.stad import build_stad
 from core.data.transforms import build_transforms
+from core.utils.checkpoint import CheckPointer
 
 
 def main() -> int:
@@ -25,13 +26,14 @@ def main() -> int:
                         default="configs/cfg.yaml",
                         help="path to config file")
     parser.add_argument('-i', '--input-video', dest='input_video', required=False, type=str, metavar="FILE",
-                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/olvia/04-09-2024/SKAT_12-25-32.mp4",
+                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/olvia/04-09-2024/SKAT_12-25-32.mp4",
+                        default="/media/yaroslav/SSD/khutornoy/data/VIDEOS/videos/ufa1/ufa1.mkv",
                         help="path to input image")
     parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
                         help="Modify config options using the command-line")
     args = parser.parse_args()
 
-    # Create config
+    # create config
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
     cfg.freeze()
@@ -47,6 +49,11 @@ def main() -> int:
     # create model
     model = build_stad(cfg)
     model = model.to(device)
+
+    # load weights
+    checkpointer = CheckPointer(model, None, None, cfg.OUTPUT_DIR)
+    checkpointer.load(cfg.MODEL.PRETRAINED_WEIGHTS)
+
     model.eval()
 
     # read input
@@ -68,6 +75,9 @@ def main() -> int:
             print("Failed to read frame")
             break
 
+        image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+        image = np.stack([image, image, image], -1)
+
         detects = []
         with torch.no_grad():
             data = {
@@ -80,9 +90,10 @@ def main() -> int:
             out_y, _ = model(inputs.to(device))
 
             # out_y = out_y.permute(0, 2, 1)
-            # outputs = Detect.postprocess(out_y, max_det=300, nc=80)
+            # outputs = Detect.postprocess(out_y, max_det=10, nc=1)
             # outputs = outputs.squeeze(0)
-            outputs = non_max_suppression(out_y, conf_thres=0.5, iou_thres=0.5)[0] # multi_label=True
+
+            outputs = non_max_suppression(out_y, conf_thres=0.5, iou_thres=0.5, nc=cfg.MODEL.HEAD.NUM_CLASSES)[0] # multi_label=True
             detects = outputs.to('cpu').numpy()
 
         for det in detects:
@@ -100,11 +111,11 @@ def main() -> int:
             w = int(w)
             h = int(h)
 
-            if conf > 0.5:
-                # cv.rectangle(image, (x - w//2, y-h//2), (x + w//2, y + h//2), (0, 255, 0), 1) # Detect.postprocess
+            if conf > 0.25:
                 cv.rectangle(image, (x, y), (w, h), (0, 255, 0), 2) # NMS
+                # cv.rectangle(image, (x - w//2, y-h//2), (x + w//2, y + h//2), (0, 255, 0), 1) # Detect.postprocess
 
-        resize_k = 1400.0 / image.shape[1]
+        resize_k = 1100.0 / image.shape[1]
         # resize_k = 1.0
         cv.imshow('Result', cv.resize(image, dsize=None, fx=resize_k, fy=resize_k, interpolation=cv.INTER_AREA))
         if cv.waitKey(1) & 0xFF == ord('q'):
