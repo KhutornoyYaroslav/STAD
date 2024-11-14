@@ -91,7 +91,7 @@ def select_samples(limit: int,
                    image: torch.Tensor, # (B, C, H, W)
                    targets: torch.Tensor, # (B, max_targets, 4 + num_classes)
                    preds: torch.Tensor, # (B, num_preds, 4 + num_classes)
-                   metric: torch.Tensor, # (B, 1)
+                   metric: torch.Tensor, # (B)
                    conf_thresh: float,
                    min_metric_better: bool,
                    image_transforms: Optional[BaseTransform] = None) -> None:
@@ -100,6 +100,9 @@ def select_samples(limit: int,
     targets_box, _ = targets.split((4, num_classes), -1) # (B, max_targets, 4)
     batch_idxs = torch.arange(targets_box.shape[0], dtype=torch.long, device=targets_box.device)
     batch_idxs = batch_idxs[targets_box.sum((1, 2)).gt_(0.0).bool()]
+
+    if not torch.numel(batch_idxs):
+        return
 
     # find best metric
     metric_per_sample = torch.index_select(metric, 0, batch_idxs)
