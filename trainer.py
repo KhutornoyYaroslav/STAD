@@ -68,9 +68,9 @@ def main():
     parser.add_argument("-s", "--save-step", dest="save_step", required=False, type=int,
                         default=1,
                         help='Save checkpoint every save_step')
-    parser.add_argument("-e", "--eval-step", dest="eval_step", required=False, type=int,
+    parser.add_argument("-e", "--eval-step", dest="val_step", required=False, type=int,
                         default=1,
-                        help='Evaluate datasets every eval_step, disabled when eval_step < 0')
+                        help='Validate datasets every val_step, disabled when val_step < 0')
     parser.add_argument("-t", "--use-tensorboard", dest="use_tensorboard", required=False, type=str2bool,
                         default=True,
                         help='Use tensorboard summary writer')

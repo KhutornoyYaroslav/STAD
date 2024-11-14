@@ -11,10 +11,9 @@ from torch.utils.data import DataLoader
 from core.utils.checkpoint import CheckPointer
 from torch.optim.lr_scheduler import LRScheduler
 from core.engine.loss import DetectionLoss
+from core.utils.tensorboard import add_metrics
+from core.engine.validation import do_validation
 from torch.utils.tensorboard import SummaryWriter
-# from core.engine.validation import do_validation
-from core.utils.tensorboard import add_metrics, select_samples
-from core.data.transforms.transforms import Denormalize, TransformCompose
 
 
 def do_train(cfg: CfgNode,
@@ -41,11 +40,6 @@ def do_train(cfg: CfgNode,
         summary_writer = SummaryWriter(log_dir=os.path.join(cfg.OUTPUT_DIR, 'tf_logs'))
     else:
         summary_writer = None
-
-    tb_img_transforms = [
-        Denormalize(cfg.INPUT.PIXEL_MEAN, cfg.INPUT.PIXEL_SCALE)
-    ]
-    tb_img_transforms = TransformCompose(tb_img_transforms)
 
     # prepare to train
     iters_per_epoch = len(data_loader_train)
@@ -78,9 +72,7 @@ def do_train(cfg: CfgNode,
             'loss_sum': 0,
             'loss_box_sum': 0,
             'loss_dfl_sum': 0,
-            'loss_cls_sum': 0,
-            'best_samples': [],
-            'worst_samples': []
+            'loss_cls_sum': 0
         }
 
         # iteration loop
@@ -114,32 +106,11 @@ def do_train(cfg: CfgNode,
             loss.backward()
             optimizer.step()
 
-            # # calculate metrics
-            # pred_labels = torch.softmax(output, dim=1).argmax(dim=1)        # (n, h, w)
-            # dice = dice_metric(pred_labels, target_labels, roi)             # (n, k)
-            # jaccard = jaccard_metric(pred_labels, target_labels, roi)       # (n, k)
-            # precision = precision_metric(pred_labels, target_labels, roi)   # (n, k)
-            # recall = recall_metric(pred_labels, target_labels, roi)         # (n, k)
-
             # update stats
             stats['loss_sum'] += loss.item()
             stats['loss_box_sum'] += loss_box.item()
             stats['loss_dfl_sum'] += loss_dfl.item()
             stats['loss_cls_sum'] += loss_cls.item()
-
-            # select best samples
-            select_samples(limit=cfg.TENSORBOARD.BEST_SAMPLES_NUM,
-                           accumulator=stats['best_samples'],
-                           image=cur_image.detach(),
-                           targets=cur_targets.detach(),
-                           preds=output_y.detach(),
-                           metric=torch.rand((cur_image.shape[0], 1)).to(device), # TODO: stub
-                           conf_thresh=cfg.TENSORBOARD.CONF_THRESH,
-                           min_metric_better=False, # TODO: check
-                           image_transforms=tb_img_transforms)
-   
-            # select worst samples
-            # TODO:
 
             # update progress bar
             mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)
@@ -157,41 +128,46 @@ def do_train(cfg: CfgNode,
         if scheduler is not None:
             scheduler.step()
 
-        # # do validation
-        # if (args.val_step > 0) and (epoch % args.val_step == 0) and (data_loader_val is not None):
-        #     print('\n')
-        #     logger.info("Start validation ...")
+        # do validation
+        if (args.val_step > 0) and (epoch % args.val_step == 0) and (data_loader_val is not None):
+            print('\n')
+            logger.info("Start validation ...")
 
-        #     torch.cuda.empty_cache()
-        #     model.eval()
-        #     val_stats = do_validation(cfg, model, data_loader_val, device)
-        #     torch.cuda.empty_cache()
-        #     model.train()
+            torch.cuda.empty_cache()
+            model.eval()
+            val_stats = do_validation(cfg, model, data_loader_val, device)
+            torch.cuda.empty_cache()
+            model.train()
 
-        #     val_loss = val_stats['loss_sum'] / val_stats['iterations']
-        #     val_dice_avg = val_stats['dice_sum'] / val_stats['iterations']
-        #     val_jaccard_avg = val_stats['jaccard_sum'] / val_stats['iterations']
-        #     val_precision_avg = val_stats['precision_sum'] / val_stats['iterations']
-        #     val_recall_avg = val_stats['recall_sum'] / val_stats['iterations']
+            val_loss = val_stats['loss_sum'] / val_stats['iterations']
+            val_loss_box = val_stats['loss_box_sum'] / val_stats['iterations']
+            val_loss_dfl = val_stats['loss_dfl_sum'] / val_stats['iterations']
+            val_loss_cls = val_stats['loss_cls_sum'] / val_stats['iterations']
 
-        #     log_preamb = 'Validation results: '
-        #     print((log_preamb + '%10s' * 1 + '%10s' * 4) % ('loss', 'dice', 'jaccard', 'prec', 'recall'))
-        #     print((len(log_preamb) * ' ' + '%10.4g' * 1 + '%10.4g' * 4) % (val_loss,
-        #                                                                    calc_mean_metric(val_dice_avg, cfg.TENSORBOARD.METRICS_IGNORE_CLASS_IDXS),
-        #                                                                    calc_mean_metric(val_jaccard_avg, cfg.TENSORBOARD.METRICS_IGNORE_CLASS_IDXS),
-        #                                                                    calc_mean_metric(val_precision_avg, cfg.TENSORBOARD.METRICS_IGNORE_CLASS_IDXS),
-        #                                                                    calc_mean_metric(val_recall_avg, cfg.TENSORBOARD.METRICS_IGNORE_CLASS_IDXS)))
-        #     print('\n')
+            log_preamb = 'Validation results: '
+            print((log_preamb + '%10s' * 6) % ('loss', 'loss_box', 'loss_dfl', 'loss_cls', 'map_50', 'map_75'))
+            print((len(log_preamb) * ' ' + '%10.4g' * 6) % (val_loss,
+                                                            val_loss_box,
+                                                            val_loss_dfl,
+                                                            val_loss_cls,
+                                                            val_stats['map_50'],
+                                                            val_stats['map_75']))
+            print('\n')
 
-        #     if summary_writer:
-        #         update_summary_writer(cfg,
-        #                               summary_writer,
-        #                               val_stats,
-        #                               val_stats['iterations'],
-        #                               optimizer,
-        #                               global_step,
-        #                               cfg.DATASET.CLASS_LABELS,
-        #                               False)
+            if summary_writer:
+                scalars = {
+                    'loss': val_loss,
+                    'loss_box': val_loss_box,
+                    'loss_dfl': val_loss_dfl,
+                    'loss_cls': val_loss_cls,
+                    'map_50': val_stats['map_50'],
+                    'map_75': val_stats['map_75']
+                }
+                samples = {
+                    'best_samples': val_stats['best_samples'],
+                    'worst_samples': val_stats['worst_samples']
+                }
+                add_metrics(summary_writer, scalars, samples, global_step, False)
 
         # save epoch results
         if epoch % args.save_step == 0:
@@ -204,11 +180,7 @@ def do_train(cfg: CfgNode,
                     'loss_cls': stats['loss_cls_sum'] / (iteration + 1),
                     'lr': optimizer.param_groups[0]["lr"]
                 }
-                samples = {
-                    'best_samples': stats['best_samples'],
-                    'worst_samples': stats['worst_samples']
-                }
-                add_metrics(summary_writer, scalars, samples, global_step, True)
+                add_metrics(summary_writer, scalars, {}, global_step, True)
 
     # save final model
     checkpointer.save("model_final", **arguments)
