@@ -60,9 +60,10 @@ class SingleImageDataset(Dataset):
         with open(label_path) as f:
             for i, line in enumerate(f.readlines()):
                 elements = list(map(float, line.split()))
-                box[i] = elements[1:5]
                 cls_idx = int(elements[0])
-                cls[i][cls_idx] = 1.0
+                if cls_idx < self.num_classes:
+                    cls[i][cls_idx] = 1.0
+                    box[i] = elements[1:5]
 
         return box, cls
 
