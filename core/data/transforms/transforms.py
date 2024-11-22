@@ -2,9 +2,9 @@ import math
 import torch
 import cv2 as cv
 import numpy as np
-from typing import Dict, Tuple, Sequence, Any, Optional, Union
-from core.data.transforms.functional import make_array_divisible_by
 from core.utils.ops import xywh2xyxy, xyxy2xywh
+from core.data.transforms.functional import make_array_divisible_by
+from typing import Dict, Tuple, Sequence, Any, Optional, Union, List
 
 
 class BaseTransform:
@@ -163,6 +163,73 @@ class Resize(BaseTransform):
     def __call__(self, data):
         if 'img' in data:
             data['img'] = self.apply_img(data['img'])
+        return data
+
+
+class PadResize(BaseTransform):
+    def __init__(self, size: Tuple[int, int], border_value: int = 114):
+        super().__init__()
+        self.size = size
+        self.border_value = border_value
+
+    def _calc_pads(self, img_w: int, img_h: int) -> List[int]:
+        source_aspect = img_w / img_h
+        target_aspect = self.size[0] / self.size[1]
+        # tblr
+        pads = [0, 0, 0, 0]
+        if source_aspect > target_aspect:
+            # pad top and bottom
+            new_height = int(np.round(img_w / target_aspect))
+            pads[0] = (new_height - img_h) // 2
+            pads[1] = new_height - img_h - pads[0]
+        else:
+            # pad left and right
+            new_width = int(np.round(img_h * target_aspect))
+            pads[2] = (new_width - img_w) // 2
+            pads[3] = new_width - img_w - pads[2]
+        return pads
+
+    def apply_img(self, img):
+        t, h, w, c = img.shape
+        # pad
+        pads = self._calc_pads(w, h)
+        img = np.pad(img,
+                     [(0, 0), (pads[0], pads[1]), (pads[2], pads[3]), (0, 0)],
+                     mode='constant', constant_values=self.border_value)
+        # resize
+        res = np.zeros(shape=(t, *self.size[::-1], c), dtype=img.dtype)
+        for i, _ in enumerate(res):
+            res[i] = cv.resize(img[i], self.size, interpolation=cv.INTER_AREA)
+        return res
+    
+    def apply_bbox(self, bbox: np.ndarray, img_w: int, img_h: int) -> np.ndarray:
+        pads = self._calc_pads(img_w, img_h)
+        new_w = np.sum([img_w, *pads[2:]])
+        new_h = np.sum([img_h, *pads[:2]])
+        # to xyxy, denormalize
+        bbox = xywh2xyxy(bbox)
+        bbox *= [img_w, img_h, img_w, img_h]
+        # translate bboxes
+        bbox[..., 0::2] += pads[2] # x offset
+        bbox[..., 1::2] += pads[0] # y offset
+        # clip
+        bbox[..., 0::2] = np.clip(bbox[..., 0::2], 0, new_w)
+        bbox[..., 1::2] = np.clip(bbox[..., 1::2], 0, new_h)
+        # filter empty bboxes (filling by zeros)
+        bbox = xyxy2xywh(bbox)
+        mask = bbox[..., 2] * bbox[..., 3] > 0
+        mask = np.expand_dims(mask, -1).repeat(4, -1).astype(np.int32)
+        bbox *= mask
+        # normalize
+        bbox /= [new_w, new_h, new_w, new_h]
+        return bbox
+    
+    def __call__(self, data):
+        if 'img' in data:
+            h, w = data['img'].shape[1:3]
+            data['img'] = self.apply_img(data['img'])
+            if 'bbox' in data:
+                data['bbox'] = self.apply_bbox(data['bbox'], w, h)
         return data
 
 
@@ -439,49 +506,3 @@ class RandomPerspective(BaseTransform):
             if 'bbox' in data:
                 data['bbox'] = self.apply_bbox(data['bbox'], w, h, mat)
         return data
-
-
-
-
-
-# class PadResize(BaseTransform):
-#     # TODO: add _apply_box
-#     def __init__(self, size: Tuple[int, int]):
-#         self.size = size
-
-#     @staticmethod
-#     def _apply_img(img: np.ndarray, size: Tuple[int, int]) -> np.ndarray:
-#         t, h, w, c = img.shape
-
-#         # pad
-#         source_aspect = w / h
-#         target_aspect = size[0] / size[1]
-
-#         pads = [0, 0, 0, 0] # tblr
-#         if source_aspect > target_aspect:
-#             # pad top and bottom
-#             new_height = int(np.round(w / target_aspect))
-#             pads[0] = (new_height - h) // 2
-#             pads[1] = new_height - h - pads[0]
-#         else:
-#             # pad left and right
-#             new_width = int(np.round(h * target_aspect))
-#             pads[2] = (new_width - w) // 2
-#             pads[3] = new_width - w - pads[2]
-
-#         img = np.pad(img,
-#                      [(0, 0), (pads[0], pads[1]), (pads[2], pads[3]), (0, 0)],
-#                      mode='constant', constant_values=0)
-#         assert img.shape[1] == img.shape[2]
-
-#         # resize
-#         res = np.zeros(shape=(t, *size, c), dtype=img.dtype)
-#         for i, _ in enumerate(res):
-#             res[i] = cv.resize(img[i], size, interpolation=cv.INTER_AREA)
-
-#         return res
-
-#     def __call__(self, data: Dict[str, ArrayLike]) -> Dict[str, ArrayLike]:
-#         if 'img' in data:
-#             data['img'] = self._apply_img(data['img'], self.size)
-#         return data
