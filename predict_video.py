@@ -26,8 +26,11 @@ def main() -> int:
                         default="configs/cfg.yaml",
                         help="path to config file")
     parser.add_argument('-i', '--input-video', dest='input_video', required=False, type=str, metavar="FILE",
-                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/olvia/04-09-2024/SKAT_12-25-32.mp4",
-                        default="/media/yaroslav/SSD/khutornoy/data/VIDEOS/videos/ufa1/ufa1.mkv",
+                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/olvia/04-09-2024/SKAT_12-54-02.mp4",
+                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/olvia/04-09-2024/SKAT_09-40-17.mp4",
+                        # default="/media/yaroslav/SSD/khutornoy/data/VIDEOS/videos/ufa1/ufa1.mkv",
+                        # default="/media/yaroslav/SSD/khutornoy/data/VIDEOS/mp4/uid_vid_00035.mp4",
+                        # default="/media/yaroslav/SSD/khutornoy/data/ImageNet/data/ImageNet2017/object_detection_from_video/ILSVRC2017_VID_new/ILSVRC/Data/VID/snippets/test/ILSVRC2017_test_00000000.mp4",
                         help="path to input image")
     parser.add_argument('opts', default=None, nargs=argparse.REMAINDER,
                         help="Modify config options using the command-line")
@@ -75,8 +78,8 @@ def main() -> int:
             print("Failed to read frame")
             break
 
-        image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
-        image = np.stack([image, image, image], -1)
+        # image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+        # image = np.stack([image, image, image], -1)
 
         detects = []
         with torch.no_grad():
@@ -90,16 +93,22 @@ def main() -> int:
             out_y, _ = model(inputs.to(device))
 
             # out_y = out_y.permute(0, 2, 1)
-            # outputs = Detect.postprocess(out_y, max_det=10, nc=1)
+            # outputs = Detect.postprocess(out_y, max_det=300, nc=cfg.MODEL.HEAD.NUM_CLASSES)
             # outputs = outputs.squeeze(0)
 
-            outputs = non_max_suppression(out_y, conf_thres=0.5, iou_thres=0.5, nc=cfg.MODEL.HEAD.NUM_CLASSES)[0] # multi_label=True
+            # TODP: multi_label=True ?
+            outputs = non_max_suppression(out_y, conf_thres=0.25, iou_thres=0.45, nc=cfg.MODEL.HEAD.NUM_CLASSES)[0]
             detects = outputs.to('cpu').numpy()
+
+        # allowed_classes = [0] # , 1, 3, 36]
 
         for det in detects:
             if len(det) > 6:
                 print(det)
             x, y, w, h, conf, class_idx = det
+
+            # if class_idx not in allowed_classes:
+            #     continue
 
             img_h, img_w  = image.shape[:2]
             x = (x / INPUT_IMG_SIZE[0]) * img_w
@@ -111,14 +120,15 @@ def main() -> int:
             w = int(w)
             h = int(h)
 
-            if conf > 0.25:
-                cv.rectangle(image, (x, y), (w, h), (0, 255, 0), 2) # NMS
+            if conf > 0.5:
+                color = (0, 255, 0) # if class_idx != 1 else (0, 0, 255)
+                cv.rectangle(image, (x, y), (w, h), color, 2) # NMS
                 # cv.rectangle(image, (x - w//2, y-h//2), (x + w//2, y + h//2), (0, 255, 0), 1) # Detect.postprocess
 
-        resize_k = 1100.0 / image.shape[1]
+        resize_k = 1400.0 / image.shape[1]
         # resize_k = 1.0
         cv.imshow('Result', cv.resize(image, dsize=None, fx=resize_k, fy=resize_k, interpolation=cv.INTER_AREA))
-        if cv.waitKey(1) & 0xFF == ord('q'):
+        if cv.waitKey(0) & 0xFF == ord('q'):
             break
 
     print("Done.")
