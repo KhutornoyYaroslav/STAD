@@ -10,7 +10,8 @@ from core.data.transforms.transforms import (
     MakeDivisibleBy,
     Compose,
     RandomJpeg,
-    RandomPerspective
+    RandomPerspective,
+    PadResize
 )
 
 
@@ -23,14 +24,16 @@ def build_transforms(cfg: CfgNode, is_train: bool = True):
     if is_train:
         transform += [
             # RandomJpeg(0.5, 0.5),
-            # RandomPerspective(rotate=0.0, translate=0.25, scale=0.25, perspective=0.0001),
-            Resize(cfg.INPUT.IMAGE_SIZE),
+            RandomPerspective(rotate=0.0, translate=0.25, scale=0.5, perspective=0.0),
+            # Resize(cfg.INPUT.IMAGE_SIZE),
+            PadResize(cfg.INPUT.IMAGE_SIZE),
             ToFloat(),
             Clip()
         ]
     else:
         transform += [
-            Resize(cfg.INPUT.IMAGE_SIZE),
+            # Resize(cfg.INPUT.IMAGE_SIZE),
+            PadResize(cfg.INPUT.IMAGE_SIZE),
             ToFloat(),
             Clip()
         ]
