@@ -50,9 +50,7 @@ def draw_objects(image: torch.Tensor, # (C, H, W)
     box_to_draw = torch.index_select(box, 0, idxs)
 
     if len(box_to_draw):
-        result = draw_bounding_boxes(image,
-                                    xywh2xyxy(box_to_draw),
-                                    colors=(0, 255, 0))
+        result = draw_bounding_boxes(image, xywh2xyxy(box_to_draw), colors=(0, 255, 0))
     else:
         result = image.clone()
 
