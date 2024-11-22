@@ -9,7 +9,7 @@ from core.engine.loss import DetectionLoss
 from core.utils.tensorboard import select_samples
 from torchmetrics.detection import MeanAveragePrecision
 from core.utils.ops import non_max_suppression, xyxy2xywh
-from core.data.transforms.transforms import Denormalize, TransformCompose
+from core.data.transforms.transforms import Denormalize, ToNumpy, ToTensor, Compose
 
 
 @torch.no_grad()
@@ -36,9 +36,11 @@ def do_validation(cfg: CfgNode,
 
     # tensorboard image transforms
     tb_img_transforms = [
-        Denormalize(cfg.INPUT.PIXEL_MEAN, cfg.INPUT.PIXEL_SCALE)
+        ToNumpy(),
+        Denormalize(cfg.INPUT.PIXEL_MEAN, cfg.INPUT.PIXEL_SCALE),
+        ToTensor()
     ]
-    tb_img_transforms = TransformCompose(tb_img_transforms)
+    tb_img_transforms = Compose(tb_img_transforms)
 
     # create stats
     stats = {
@@ -56,7 +58,7 @@ def do_validation(cfg: CfgNode,
     for data_entry in tqdm(data_loader):
         # get data
         images = data_entry["img"]                              # (B, T, C, H, W)
-        bboxes = data_entry["box"]                              # (B, T, max_targets, 4)
+        bboxes = data_entry["bbox"]                              # (B, T, max_targets, 4)
         classes = data_entry["cls"]                             # (B, T, max_targets, num_classes)
 
         cur_image = images[:, -1].to(device)                    # (B, C, H, W)

@@ -14,6 +14,8 @@ from core.engine.loss import DetectionLoss
 from core.utils.tensorboard import add_metrics
 from core.engine.validation import do_validation
 from torch.utils.tensorboard import SummaryWriter
+from core.utils.tensorboard import select_samples
+from core.data.transforms.transforms import Denormalize, ToNumpy, ToTensor, Compose
 
 
 def do_train(cfg: CfgNode,
@@ -40,6 +42,14 @@ def do_train(cfg: CfgNode,
         summary_writer = SummaryWriter(log_dir=os.path.join(cfg.OUTPUT_DIR, 'tf_logs'))
     else:
         summary_writer = None
+
+    # tensorboard image transforms
+    tb_img_transforms = [
+        ToNumpy(),
+        Denormalize(cfg.INPUT.PIXEL_MEAN, cfg.INPUT.PIXEL_SCALE),
+        ToTensor()
+    ]
+    tb_img_transforms = Compose(tb_img_transforms)
 
     # prepare to train
     iters_per_epoch = len(data_loader_train)
@@ -72,7 +82,8 @@ def do_train(cfg: CfgNode,
             'loss_sum': 0,
             'loss_box_sum': 0,
             'loss_dfl_sum': 0,
-            'loss_cls_sum': 0
+            'loss_cls_sum': 0,
+            'random_samples' : []
         }
 
         # iteration loop
@@ -81,7 +92,7 @@ def do_train(cfg: CfgNode,
 
             # get data
             images = data_entry["img"]                              # (B, T, C, H, W)
-            bboxes = data_entry["box"]                              # (B, T, max_targets, 4)
+            bboxes = data_entry["bbox"]                              # (B, T, max_targets, 4)
             classes = data_entry["cls"]                             # (B, T, max_targets, num_classes)
 
             cur_image = images[:, -1]                               # (B, C, H, W)
@@ -105,6 +116,17 @@ def do_train(cfg: CfgNode,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
+            # select random samples to tensorboard
+            select_samples(limit=cfg.TENSORBOARD.BEST_SAMPLES_NUM,
+                           accumulator=stats['random_samples'],
+                           image=cur_image.detach(),
+                           targets=cur_targets.detach(),
+                           preds=output_y.detach(),
+                           metric=torch.rand(cur_image.shape[0], device=device),
+                           conf_thresh=cfg.TENSORBOARD.CONF_THRESH,
+                           min_metric_better=False,
+                           image_transforms=tb_img_transforms)
 
             # update stats
             stats['loss_sum'] += loss.item()
@@ -180,7 +202,10 @@ def do_train(cfg: CfgNode,
                     'loss_cls': stats['loss_cls_sum'] / (iteration + 1),
                     'lr': optimizer.param_groups[0]["lr"]
                 }
-                add_metrics(summary_writer, scalars, {}, global_step, True)
+                samples = {
+                    'random_samples': stats['random_samples'],
+                }
+                add_metrics(summary_writer, scalars, samples, global_step, True)
 
     # save final model
     checkpointer.save("model_final", **arguments)
