@@ -1,0 +1,42 @@
+DATASET:
+  CLASS_LABELS_FILE: ''
+  SEQUENCE_LENGTH: 1
+  SEQUENCE_STRIDE: 1
+  TRAIN_DATA_PATHS: []
+  TRAIN_ANNO_PATHS: []
+  TYPE: ''
+  VALID_DATA_PATHS: []
+  VALID_ANNO_PATHS: []
+DATA_LOADER:
+  NUM_WORKERS: 1
+  PIN_MEMORY: True
+INPUT:
+  IMAGE_SIZE: [256, 256]
+  PAD_LABELS_TO: 32
+  PIXEL_MEAN: [0, 0, 0]
+  PIXEL_SCALE: [255, 255, 255]
+MODEL:
+  BACKBONE2D:
+    ARCHITECTURE: yolov8m
+    FREEZE: False
+    PRETRAINED_WEIGHTS: https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8m.pt
+  DEVICE: cuda
+  HEAD:
+    ARCHITECTURE: yolov8
+    FREEZE: False
+    NUM_CLASSES: 80
+    PRETRAINED_WEIGHTS: https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8m.pt
+  PRETRAINED_WEIGHTS:
+OUTPUT_DIR: outputs/test
+SOLVER:
+  BATCH_SIZE: 32
+  LOSS_BOX_WEIGHT: 7.5
+  LOSS_CLS_WEIGHT: 0.5
+  LOSS_DFL_WEIGHT: 1.5
+  LR: 0.0001
+  MAX_EPOCH: 20
+  TAL_TOPK: 10
+TENSORBOARD:
+  BEST_SAMPLES_NUM: 32
+  CONF_THRESH: 0.5
+  WORST_SAMPLES_NUM: 32
