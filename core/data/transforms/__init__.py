@@ -5,18 +5,25 @@ from core.data.transforms.transforms import (
     ToFloat,
     Normalize,
     ToTensor,
-    CheckData,
+    CheckFormat,
     ConvertColor,
     MakeDivisibleBy,
-    TransformCompose
+    Compose,
+    RandomJpeg,
+    RandomPerspective
 )
 
 
 def build_transforms(cfg: CfgNode, is_train: bool = True):
-    transform = [CheckData(), ConvertColor("BGR", "RGB")]
+    transform = [
+        CheckFormat(),
+        ConvertColor("BGR", "RGB")
+    ]
 
     if is_train:
         transform += [
+            # RandomJpeg(0.5, 0.5),
+            # RandomPerspective(rotate=0.0, translate=0.25, scale=0.25, perspective=0.0001),
             Resize(cfg.INPUT.IMAGE_SIZE),
             ToFloat(),
             Clip()
@@ -28,6 +35,9 @@ def build_transforms(cfg: CfgNode, is_train: bool = True):
             Clip()
         ]
 
-    transform += [Normalize(cfg.INPUT.PIXEL_MEAN, cfg.INPUT.PIXEL_SCALE), ToTensor()]
+    transform += [
+        Normalize(cfg.INPUT.PIXEL_MEAN, cfg.INPUT.PIXEL_SCALE),
+        ToTensor()
+    ]
 
-    return TransformCompose(transform)
+    return Compose(transform)
