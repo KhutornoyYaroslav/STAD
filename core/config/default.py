@@ -31,6 +31,7 @@ _CFG.MODEL.HEAD.NUM_CLASSES = 80
 # -----------------------------------------------------------------------------
 _CFG.INPUT = CN()
 _CFG.INPUT.IMAGE_SIZE = [512, 512]
+_CFG.INPUT.PAD_LABELS_TO = 32
 _CFG.INPUT.PIXEL_MEAN = [0, 0, 0]
 _CFG.INPUT.PIXEL_SCALE = [255, 255, 255]
 
@@ -38,12 +39,14 @@ _CFG.INPUT.PIXEL_SCALE = [255, 255, 255]
 # Dataset
 # -----------------------------------------------------------------------------
 _CFG.DATASET = CN()
-_CFG.DATASET.PAD_LABELS_TO = 32
-_CFG.DATASET.TRAIN_IMAGE_PATHS = []
-_CFG.DATASET.TRAIN_LABEL_PATHS = []
-_CFG.DATASET.VALID_IMAGE_PATHS = []
-_CFG.DATASET.VALID_LABEL_PATHS = []
-
+_CFG.DATASET.TRAIN_DATA_PATHS = []
+_CFG.DATASET.TRAIN_ANNO_PATHS = []
+_CFG.DATASET.VALID_DATA_PATHS = []
+_CFG.DATASET.VALID_ANNO_PATHS = []
+_CFG.DATASET.CLASS_LABELS_FILE = ""
+_CFG.DATASET.TYPE = ""
+_CFG.DATASET.SEQUENCE_LENGTH = 1
+_CFG.DATASET.SEQUENCE_STRIDE = 1
 # -----------------------------------------------------------------------------
 # DataLoader
 # -----------------------------------------------------------------------------

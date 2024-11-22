@@ -36,20 +36,20 @@ def make_data_loader(cfg, is_train: bool = True) -> Optional[DataLoader]:
     logger = logging.getLogger('CORE')
 
     if is_train:
-        image_paths = cfg.DATASET.TRAIN_IMAGE_PATHS
-        label_paths = cfg.DATASET.TRAIN_LABEL_PATHS
+        data_paths = cfg.DATASET.TRAIN_DATA_PATHS
+        anno_paths = cfg.DATASET.TRAIN_ANNO_PATHS
     else:
-        image_paths = cfg.DATASET.VALID_IMAGE_PATHS
-        label_paths = cfg.DATASET.VALID_LABEL_PATHS
+        data_paths = cfg.DATASET.VALID_DATA_PATHS
+        anno_paths = cfg.DATASET.VALID_ANNO_PATHS
 
     # build transforms
     transforms = build_transforms(cfg, is_train)
 
     # create dataset
     datasets = []
-    for image_path, label_path in zip(image_paths, label_paths):
-        dataset = build_dataset(cfg, image_path, label_path, transforms)
-        logger.info(f"Loaded dataset from '{image_path}'. Size: {len(dataset)}")
+    for data_path, anno_path in zip(data_paths, anno_paths):
+        dataset = build_dataset(cfg, data_path, anno_path, transforms)
+        logger.info(f"Loaded dataset from '{data_path}'. Size: {len(dataset)}")
         datasets.append(dataset)
 
     if not datasets:
