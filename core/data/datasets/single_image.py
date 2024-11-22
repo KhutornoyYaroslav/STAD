@@ -16,7 +16,7 @@ class SingleImageDataset(Dataset):
                  transforms: Optional[BaseTransform] = None):
         self.files = self._scan_files(img_path, label_path)
         self.transforms = transforms
-        self.max_labels = cfg.DATASET.PAD_LABELS_TO
+        self.max_labels = cfg.INPUT.PAD_LABELS_TO
         self.num_classes = cfg.MODEL.HEAD.NUM_CLASSES
 
     def __len__(self):
@@ -31,8 +31,8 @@ class SingleImageDataset(Dataset):
         item["img"] = np.expand_dims(img, axis=0) # (1, H, W, C)
 
         # read label
-        item["box"], item["cls"] = self._read_label(file["label_path"])
-        item["box"] = np.expand_dims(item["box"], axis=0) # (1, max_labels, 4)
+        item["bbox"], item["cls"] = self._read_label(file["label_path"])
+        item["bbox"] = np.expand_dims(item["bbox"], axis=0) # (1, max_labels, 4)
         item["cls"] = np.expand_dims(item["cls"], axis=0) # (1, max_labels, num_classes)
 
         # apply transforms
@@ -70,7 +70,7 @@ class SingleImageDataset(Dataset):
     def visualize(self, tick_ms: int = 0):
         for i in range(0, self.__len__()):
             item = self.__getitem__(i)
-            for img, box, cls in zip(item["img"], item["box"], item["cls"]):
+            for img, box, cls in zip(item["img"], item["bbox"], item["cls"]):
                 img = (img.cpu().numpy() * 255).astype(np.uint8).transpose(1, 2, 0)
                 img = cv.cvtColor(img, cv.COLOR_RGB2BGR)
                 w, h = img.shape[-2:-4:-1]
