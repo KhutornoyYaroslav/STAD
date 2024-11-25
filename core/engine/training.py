@@ -91,20 +91,19 @@ def do_train(cfg: CfgNode,
             global_step = epoch * iters_per_epoch + iteration
 
             # get data
-            images = data_entry["img"]                              # (B, T, C, H, W)
-            bboxes = data_entry["bbox"]                              # (B, T, max_targets, 4)
-            classes = data_entry["cls"]                             # (B, T, max_targets, num_classes)
+            images = data_entry["img"].to(device)                   # (B, T, C, H, W)
+            bboxes = data_entry["bbox"].to(device)                  # (B, T, max_targets, 4)
+            classes = data_entry["cls"].to(device)                  # (B, T, max_targets, num_classes)
 
             cur_image = images[:, -1]                               # (B, C, H, W)
             cur_bboxes = bboxes[:, -1]                              # (B, max_targets, 4)
             cur_classes = classes[:, -1]                            # (B, max_targets, num_classes)
             cur_targets = torch.cat([cur_bboxes, cur_classes], -1)  # (B, max_targets, 4 + num_classes)
 
-            cur_image = cur_image.to(device)
-            cur_targets = cur_targets.to(device)
+            clip = images.permute(0, 2, 1, 3, 4)                    # (B, T, C, H, W) -> (B, C, T, H, W)
 
             # forward model
-            output_y, output_x = model(cur_image)                   # 3 x (B, C, Hi, Wi)
+            output_y, output_x = model(clip, cur_image)             # 3 x (B, C, Hi, Wi)
             output_y = output_y.permute(0, 2, 1)
 
             # calculate loss
