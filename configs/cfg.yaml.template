@@ -20,6 +20,11 @@ MODEL:
     ARCHITECTURE: yolov8m
     FREEZE: False
     PRETRAINED_WEIGHTS: https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8m.pt
+  BACKBONE3D:
+    ARCHITECTURE: mobilenetv2
+    CHANNEL_MULT: 1.0
+    FREEZE: False
+    PRETRAINED_WEIGHTS:
   DEVICE: cuda
   HEAD:
     ARCHITECTURE: yolov8

@@ -18,6 +18,15 @@ _CFG.MODEL.BACKBONE2D.PRETRAINED_WEIGHTS = "https://github.com/ultralytics/asset
 _CFG.MODEL.BACKBONE2D.FREEZE = False
 
 # ---------------------------------------------------------------------------- #
+# Backbone3d
+# ---------------------------------------------------------------------------- #
+_CFG.MODEL.BACKBONE3D = CN()
+_CFG.MODEL.BACKBONE3D.ARCHITECTURE = "mobilenetv2"
+_CFG.MODEL.BACKBONE3D.CHANNEL_MULT = 1.0
+_CFG.MODEL.BACKBONE3D.PRETRAINED_WEIGHTS = ""
+_CFG.MODEL.BACKBONE3D.FREEZE = False
+
+# ---------------------------------------------------------------------------- #
 # Head
 # ---------------------------------------------------------------------------- #
 _CFG.MODEL.HEAD = CN()
