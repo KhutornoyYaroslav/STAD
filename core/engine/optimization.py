@@ -19,4 +19,5 @@ def make_optimizer(cfg: CfgNode, model: torch.nn.Module) -> torch.optim.Optimize
             "\n".join(params_names_to_freeze)))
 
     lr = float(cfg.SOLVER.LR)
-    return torch.optim.Adam(params=params_to_train, lr=lr)
+    wd = float(cfg.SOLVER.WEIGHT_DECAY)
+    return torch.optim.Adam(params=params_to_train, lr=lr, weight_decay=wd)
