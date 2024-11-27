@@ -85,6 +85,7 @@ _CFG.SOLVER.LOSS_DFL_WEIGHT = 1.0
 _CFG.SOLVER.LR = 1e-4
 _CFG.SOLVER.MAX_EPOCH = 10
 _CFG.SOLVER.TAL_TOPK = 10
+_CFG.SOLVER.WEIGHT_DECAY = 0.0
 # _CFG.SOLVER.STAGES = [
 #     ['1', 'inter', 'single', 'me', 'none', '0.0001', '1', 'vgg'],
 #     ['1', 'inter', 'single', 'me', 'me', '0.0001', '3', 'vgg'],
