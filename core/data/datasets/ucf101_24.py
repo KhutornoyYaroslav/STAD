@@ -1,5 +1,4 @@
 import os
-import pickle
 import cv2 as cv
 import numpy as np
 from glob import glob
@@ -7,6 +6,7 @@ from core.config import CfgNode
 from torch.utils.data import Dataset
 from typing import Tuple, List, Optional
 from core.data.transforms.transforms import BaseTransform
+from core.utils.ops import xyxy2xywh
 
 
 class UCF101_24Dataset(Dataset):
@@ -15,80 +15,48 @@ class UCF101_24Dataset(Dataset):
                  data_path: str,
                  anno_path: str,
                  transforms: Optional[BaseTransform] = None):
-        self.data_root = data_path
-        self.anno_seqs = self._parse_anno(anno_path,
-                                          cfg.DATASET.SEQUENCE_LENGTH,
-                                          cfg.DATASET.SEQUENCE_STRIDE)
-        self.class_labels = self._parse_class_labels(anno_path)
+        self.seqs = self._parse_seqs(anno_path,
+                                     data_path,
+                                     cfg.DATASET.SEQUENCE_LENGTH,
+                                     cfg.DATASET.SEQUENCE_STRIDE)
         self.transforms = transforms
         self.max_labels = cfg.INPUT.PAD_LABELS_TO
         self.num_classes = cfg.MODEL.HEAD.NUM_CLASSES
-        assert self.num_classes == len(self.class_labels) == 24
+        assert self.num_classes == 24
 
     def __len__(self):
-        return len(self.anno_seqs)
+        return len(self.seqs)
 
-    def _parse_class_labels(self, filename: str) -> List[str]:
-        result = []
-        with open(filename, 'rb') as f:
-            data = pickle.load(f, encoding="bytes")
-            for label in data[b'labels']:
-                result.append(label.decode('utf-8'))
-        return result
-
-    def _parse_anno(self,
-                    filename: str,
+    def _parse_seqs(self,
+                    anno_root: str,
+                    data_root: str,
                     seq_length: int,
                     seq_stride: int = 1) -> List[List[Tuple[str, dict]]]:
         result = []
-        with open(filename, 'rb') as f:
-            # deserialize
-            data = pickle.load(f, encoding="bytes")
-            labels = [label.decode('utf-8') for label in data[b'labels']]
 
-            # for each video
-            for gttubes, nframes, res in zip(data[b'gttubes'].items(),
-                                             data[b'nframes'].items(),
-                                             data[b'resolution'].items()):
-                assert gttubes[0] == nframes[0] == res[0]
+        # parse seqpaths
+        def get_seqpath(path: str) -> str:
+            head, ssd = os.path.split(path)
+            sd = os.path.split(head)[1]
+            return os.path.join(sd, ssd)
 
-                # video props
-                img_h, img_w = res[1]
-                video_length = nframes[1]
-                video_name = gttubes[0].decode("utf-8")
+        seqpaths = sorted(glob(os.path.join(anno_root, "*/*")))
+        seqpaths = [get_seqpath(s) for s in seqpaths]
 
-                # video frames
-                frames = sorted(glob(os.path.join(self.data_root, video_name, "*.*")))
-                assert len(frames) == video_length
+        # prepare seqs
+        for seqpath in seqpaths:
+            annoimgs = []
+            annos = sorted(glob(os.path.join(anno_root, seqpath, "*.txt")))
+            for anno in annos:
+                filename = os.path.basename(anno)
+                filename = os.path.splitext(filename)[0]
+                img = os.path.join(data_root, seqpath, filename + ".jpg")
+                annoimgs.append((anno, img))
 
-                # parse gttubes
-                annos_per_frames = [(fname, []) for fname in frames] # fname, list(dict)
-                for label_idx, tubes in gttubes[1].items():
-                    for tube in tubes:
-                        tube = np.asarray(tube, dtype=np.int32)
-                        for frame_idx, x1, y1, x2, y2 in tube: # use as frame_idx = (frame_idx - 1)
-                            obj_anno = {
-                                'label': labels[label_idx],
-                                'bbox': [
-                                    (x1 + x2) / 2 / img_w,
-                                    (y1 + y2) / 2 / img_h,
-                                    (x2 - x1) / img_w,
-                                    (y2 - y1) / img_h
-                                ]
-                            }
-                            annos_per_frames[frame_idx - 1][1].append(obj_anno)
-
-                # split on seqs
-                while seq_length * seq_stride <= len(annos_per_frames):
-                    anno_seq, annos_per_frames = annos_per_frames[:seq_length:seq_stride], annos_per_frames[seq_length * seq_stride:]
-                    # filter seq with at least one empty frame
-                    seq_has_empty = False
-                    for f in anno_seq:
-                        if not len(f[1]):
-                            seq_has_empty = True
-                            break
-                    if not seq_has_empty:
-                        result.append(anno_seq)
+            # split on seqs
+            while seq_length * seq_stride <= len(annoimgs):
+                anno_seq, annoimgs = annoimgs[:seq_length:seq_stride], annoimgs[seq_length * seq_stride:]
+                result.append(anno_seq)
 
         return result
 
@@ -97,17 +65,28 @@ class UCF101_24Dataset(Dataset):
         bboxes = []
         classes = []
 
-        for file, anno in self.anno_seqs[idx]:
+        for apath, ipath in self.seqs[idx]:
             # read image
-            img = cv.imread(file, cv.IMREAD_COLOR)
+            img = cv.imread(ipath, cv.IMREAD_COLOR)
+            h, w = img.shape[0:2]
             imgs.append(img)
 
             # read objects
             box = np.zeros(shape=(self.max_labels, 4), dtype=np.float32)
             cls = np.zeros(shape=(self.max_labels, self.num_classes), dtype=np.float32)
-            for i, obj in enumerate(anno):
-                box[i] = obj['bbox']
-                cls[i][self.class_labels.index(obj['label'])] = 1.0
+
+            with open(apath, 'r') as f:
+                for i, line in enumerate(f.readlines()):
+                    elements = list(map(float, line.split()))
+                    cls_idx = int(elements[0]) - 1 # TODO: check - 1
+                    if cls_idx < self.num_classes:
+                        assert self.num_classes > cls_idx >= 0
+                        cls[i][cls_idx] = 1.0
+                        box[i] = xyxy2xywh(np.asarray(elements[1:5]))
+
+            box[:, 0::2] = box[:, 0::2] / w
+            box[:, 1::2] = box[:, 1::2] / h
+
             bboxes.append(box)
             classes.append(cls)
 
@@ -132,11 +111,24 @@ class UCF101_24Dataset(Dataset):
 
                 for b, c in zip(box, cls):
                     b = b.cpu().numpy()
+
+                    # skip empty
+                    if b[2] * b[3] == 0:
+                        continue
+
+                    # draw bbox
                     b[::2] *= w
                     b[1::2] *= h
                     tl = b[:2] - (b[2:4] / 2)
                     br = b[:2] + (b[2:4] / 2)
                     cv.rectangle(img, tl.astype(np.int32), br.astype(np.int32), (0, 255, 0), 2)
+
+                    # draw labels
+                    pt = tl.astype(np.int32) + [0, 10]
+                    for idx in np.where(c == 1.0)[0]:
+                        text = f"{idx} {c[idx]:.2f}"
+                        cv.putText(img, text, pt, cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                        pt += [0, 10]
 
                 cv.imshow('img', img)
                 if cv.waitKey(tick_ms) & 0xFF == ord('q'):
