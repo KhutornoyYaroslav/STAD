@@ -42,6 +42,15 @@ _CFG.MODEL.HEAD.FREEZE = False
 _CFG.MODEL.HEAD.NUM_CLASSES = 80
 
 # -----------------------------------------------------------------------------
+# Loss
+# -----------------------------------------------------------------------------
+_CFG.LOSS = CN()
+_CFG.LOSS.BOX_WEIGHT = 1.0
+_CFG.LOSS.CLS_WEIGHT = 1.0
+_CFG.LOSS.DFL_WEIGHT = 1.0
+_CFG.LOSS.TAL_TOPK = 10
+
+# -----------------------------------------------------------------------------
 # Input
 # -----------------------------------------------------------------------------
 _CFG.INPUT = CN()
@@ -74,30 +83,9 @@ _CFG.DATA_LOADER.PIN_MEMORY = True
 # ---------------------------------------------------------------------------- #
 _CFG.SOLVER = CN()
 _CFG.SOLVER.BATCH_SIZE = 1
-# _CFG.SOLVER.LAMBDAS = [85, 170, 380, 840]
-# _CFG.SOLVER.PL_MODEL = 'vgg'
-# _CFG.SOLVER.PL_LAYERS = ['1', '2', '3', '4']
-# _CFG.SOLVER.PL_LAMBDA = 1e+1
-# _CFG.SOLVER.DIST_LAMBDA = 1.0
-_CFG.SOLVER.LOSS_BOX_WEIGHT = 1.0
-_CFG.SOLVER.LOSS_CLS_WEIGHT = 1.0
-_CFG.SOLVER.LOSS_DFL_WEIGHT = 1.0
 _CFG.SOLVER.LR = 1e-4
 _CFG.SOLVER.MAX_EPOCH = 10
-_CFG.SOLVER.TAL_TOPK = 10
 _CFG.SOLVER.WEIGHT_DECAY = 0.0
-# _CFG.SOLVER.STAGES = [
-#     ['1', 'inter', 'single', 'me', 'none', '0.0001', '1', 'vgg'],
-#     ['1', 'inter', 'single', 'me', 'me', '0.0001', '3', 'vgg'],
-#     ['1', 'recon', 'single', 'rec', 'none', '0.0001', '3', 'vgg'],
-#     ['1', 'recon', 'single', 'rec', 'rec', '0.0001', '3', 'vgg'],
-#     ['1', 'all', 'single', 'rec', 'all', '0.0001', '6', 'vgg'],
-#     ['2', 'all', 'single', 'rec', 'all', '0.0001', '5', 'vgg'],
-#     ['4', 'all', 'single', 'rec', 'all', '0.0001', '3', 'vgg'],
-#     ['4', 'all', 'single', 'rec', 'all', '0.00001', '1', 'vgg'],
-#     ['4', 'all', 'cascade', 'rec', 'all', '0.00005', '2', 'vgg'],
-#     ['4', 'all', 'cascade', 'rec', 'all', '0.00001', '3', 'vgg']
-#   ]
 
 # ---------------------------------------------------------------------------- #
 # Output options
