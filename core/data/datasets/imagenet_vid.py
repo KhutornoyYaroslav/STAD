@@ -18,7 +18,8 @@ class ImagenetVidDataset(Dataset):
         self.data_root = data_root
         self.anno_seqs = self._prepare_anno_seqs(anno_root,
                                                  cfg.DATASET.SEQUENCE_LENGTH,
-                                                 cfg.DATASET.SEQUENCE_STRIDE)
+                                                 cfg.DATASET.SEQUENCE_STRIDE,
+                                                 cfg.DATASET.SEQUENCE_DILATE)
         self.class_labels = self._parse_class_labels(cfg.DATASET.CLASS_LABELS_FILE)
         self.transforms = transforms
         self.max_labels = cfg.INPUT.PAD_LABELS_TO
@@ -89,13 +90,14 @@ class ImagenetVidDataset(Dataset):
     def _prepare_anno_seqs(self,
                            anno_root: str,
                            seq_length: int,
-                           seq_stride: int = 1) -> List[List[str]]:
+                           seq_stride: int,
+                           seq_dilate: int) -> List[List[str]]:
         result = []
         anno_dirs = sorted(glob(os.path.join(anno_root, "*")))
         for anno_dir in anno_dirs:
             annos = sorted(glob(os.path.join(anno_dir, "*.xml")))
-            while seq_length * seq_stride <= len(annos):
-                anno_seq, annos = annos[:seq_length:seq_stride], annos[seq_length * seq_stride:]
+            while seq_length * seq_dilate <= len(annos):
+                anno_seq, annos = annos[:seq_length:seq_dilate], annos[seq_stride:]
                 result.append(anno_seq)
         return result
 
