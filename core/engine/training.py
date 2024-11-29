@@ -62,11 +62,14 @@ def do_train(cfg: CfgNode,
     det_loss = DetectionLoss(num_classes=model.get_num_classes(),
                              strides=model.get_strides(),
                              dfl_bins=model.get_dfl_num_bins(),
-                             loss_box_k=cfg.SOLVER.LOSS_BOX_WEIGHT,
-                             loss_dfl_k=cfg.SOLVER.LOSS_DFL_WEIGHT,
-                             loss_cls_k=cfg.SOLVER.LOSS_CLS_WEIGHT,
+                             loss_box_k=cfg.LOSS.BOX_WEIGHT,
+                             loss_dfl_k=cfg.LOSS.DFL_WEIGHT,
+                             loss_cls_k=cfg.LOSS.CLS_WEIGHT,
                              device=device,
-                             tal_topk=cfg.SOLVER.TAL_TOPK)
+                             tal_topk=cfg.LOSS.TAL_TOPK)
+    
+    # solver parameters
+    acc_grad = cfg.SOLVER.GRAD_ACCUM_ITERS
 
     # epoch loop
     for epoch in range(start_epoch, end_epoch):
@@ -103,8 +106,7 @@ def do_train(cfg: CfgNode,
             clip = images.permute(0, 2, 1, 3, 4)                    # (B, T, C, H, W) -> (B, C, T, H, W)
 
             # forward model
-            output_y, output_x = model(clip, cur_image)             # 3 x (B, C, Hi, Wi)
-            output_y = output_y.permute(0, 2, 1)
+            output_x = model(clip, cur_image)                       # 3 x (B, C, Hi, Wi)
 
             # calculate loss
             losses = det_loss(output_x, cur_targets)
@@ -112,20 +114,24 @@ def do_train(cfg: CfgNode,
             loss_box, loss_cls, loss_dfl = losses[1]
 
             # optimize model
-            optimizer.zero_grad()
+            loss = loss / acc_grad
             loss.backward()
-            optimizer.step()
 
-            # select random samples to tensorboard
-            select_samples(limit=cfg.TENSORBOARD.BEST_SAMPLES_NUM,
-                           accumulator=stats['random_samples'],
-                           image=cur_image.detach(),
-                           targets=cur_targets.detach(),
-                           preds=output_y.detach(),
-                           metric=torch.rand(cur_image.shape[0], device=device),
-                           conf_thresh=cfg.TENSORBOARD.CONF_THRESH,
-                           min_metric_better=False,
-                           image_transforms=tb_img_transforms)
+            if (iteration + 1) % acc_grad == 0:
+                nn.utils.clip_grad_value_(model.parameters(), clip_value=2.0)
+                optimizer.step()
+                optimizer.zero_grad()
+
+            # # select random samples to tensorboard
+            # select_samples(limit=cfg.TENSORBOARD.BEST_SAMPLES_NUM,
+            #                accumulator=stats['random_samples'],
+            #                image=cur_image.detach(),
+            #                targets=cur_targets.detach(),
+            #                preds=output_y.detach(),
+            #                metric=torch.rand(cur_image.shape[0], device=device),
+            #                conf_thresh=cfg.TENSORBOARD.CONF_THRESH,
+            #                min_metric_better=False,
+            #                image_transforms=tb_img_transforms)
 
             # update stats
             stats['loss_sum'] += loss.item()
