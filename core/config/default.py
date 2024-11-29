@@ -84,6 +84,7 @@ _CFG.DATA_LOADER.PIN_MEMORY = True
 # ---------------------------------------------------------------------------- #
 _CFG.SOLVER = CN()
 _CFG.SOLVER.BATCH_SIZE = 1
+_CFG.SOLVER.GRAD_ACCUM_ITERS = 1
 _CFG.SOLVER.LR = 1e-4
 _CFG.SOLVER.MAX_EPOCH = 10
 _CFG.SOLVER.WEIGHT_DECAY = 0.0
