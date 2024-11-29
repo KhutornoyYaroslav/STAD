@@ -25,11 +25,11 @@ def do_validation(cfg: CfgNode,
     det_loss = DetectionLoss(num_classes=num_classes,
                              strides=strides,
                              dfl_bins=model.get_dfl_num_bins(),
-                             loss_box_k=cfg.SOLVER.LOSS_BOX_WEIGHT,
-                             loss_dfl_k=cfg.SOLVER.LOSS_DFL_WEIGHT,
-                             loss_cls_k=cfg.SOLVER.LOSS_CLS_WEIGHT,
+                             loss_box_k=cfg.LOSS.BOX_WEIGHT,
+                             loss_dfl_k=cfg.LOSS.DFL_WEIGHT,
+                             loss_cls_k=cfg.LOSS.CLS_WEIGHT,
                              device=device,
-                             tal_topk=cfg.SOLVER.TAL_TOPK)
+                             tal_topk=cfg.LOSS.TAL_TOPK)
     map_metric = MeanAveragePrecision(box_format='cxcywh', iou_type='bbox')
     # MeanAveragePrecision.warn_on_many_detections=False
     # TODO: extended_summary=True to get recall, precision
@@ -74,7 +74,7 @@ def do_validation(cfg: CfgNode,
 
         # TODO: multiclass to multi targets
         # TODO: multi_label=True ?
-        outputs = non_max_suppression(output_y, conf_thres=0.25, iou_thres=0.45, nc=num_classes, in_place=False) # (num_boxes, 4 + score + label)
+        outputs = non_max_suppression(output_y, conf_thres=0.005, iou_thres=0.45, nc=num_classes, in_place=False) # (num_boxes, 4 + score + label), xyxy
 
         # calculate loss
         losses = det_loss(output_x, cur_targets)
@@ -90,8 +90,8 @@ def do_validation(cfg: CfgNode,
             gt_classes = cur_classes[batch_idx] # (max_targets, num_classes)
 
             # remove padding
-            nonzero_boxes = gt_bboxes.sum(-1).gt_(0.0)
-            nonzero_boxes_idxs = torch.nonzero(nonzero_boxes, as_tuple=True)[0]
+            nonzero_boxes = gt_bboxes.sum(-1).gt(0.0)
+            nonzero_boxes_idxs = torch.where(nonzero_boxes == True)
             gt_bboxes = gt_bboxes[nonzero_boxes_idxs] # (num_boxes, 4)
             gt_classes = gt_classes[nonzero_boxes_idxs] # (num_boxes, num_classes)
 
@@ -99,7 +99,7 @@ def do_validation(cfg: CfgNode,
             gt_labels_idxs = gt_classes.argmax(-1, keepdim=True) # (num_boxes, num_classes), int64
             gt_labels = gt_labels_idxs.squeeze(-1) # (num_boxes), int64
             targets.append(dict(
-                boxes=gt_bboxes.mul_(imgsz[[1, 0, 1, 0]]), # scale boxes to image size
+                boxes=gt_bboxes.mul(imgsz[[1, 0, 1, 0]]), # scale boxes to image size
                 labels=gt_labels
             ))
 
@@ -123,7 +123,7 @@ def do_validation(cfg: CfgNode,
 
         # select best and worst samples
         if len(batch_metric):
-            batch_metric = torch.stack([m['map_75'] for m in batch_metric], 0).to(device)
+            batch_metric = torch.stack([m['map_50'] for m in batch_metric], 0).to(device)
 
             select_samples(limit=cfg.TENSORBOARD.BEST_SAMPLES_NUM,
                            accumulator=stats['best_samples'],
