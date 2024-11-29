@@ -70,15 +70,13 @@ def do_validation(cfg: CfgNode,
 
         # forward model
         output_y, output_x = model(clip, cur_image)             # 3 x (B, C, Hi, Wi)
-        # output_y = output_y.permute(0, 2, 1)                  # (B, num_anchors, 4 + num_classes)
 
-        # TODO: multiclass to multi targets
-        # TODO: multi_label=True ?
+        # TODO: multi_label = True ?
         outputs = non_max_suppression(output_y, conf_thres=0.005, iou_thres=0.45, nc=num_classes, in_place=False) # (num_boxes, 4 + score + label), xyxy
 
         # calculate loss
         losses = det_loss(output_x, cur_targets)
-        loss = losses[0]
+        loss = losses[0] / cfg.SOLVER.GRAD_ACCUM_ITERS
         loss_box, loss_cls, loss_dfl = losses[1]
 
         # calculate mAP
@@ -86,20 +84,20 @@ def do_validation(cfg: CfgNode,
 
         preds, targets, batch_metric = [], [], []
         for batch_idx in range(cur_image.shape[0]):
-            gt_bboxes = cur_bboxes[batch_idx] # (max_targets, 4)
-            gt_classes = cur_classes[batch_idx] # (max_targets, num_classes)
+            gt_bboxes = cur_bboxes[batch_idx]                       # (max_targets, 4)
+            gt_classes = cur_classes[batch_idx]                     # (max_targets, num_classes)
 
             # remove padding
             nonzero_boxes = gt_bboxes.sum(-1).gt(0.0)
             nonzero_boxes_idxs = torch.where(nonzero_boxes == True)
-            gt_bboxes = gt_bboxes[nonzero_boxes_idxs] # (num_boxes, 4)
-            gt_classes = gt_classes[nonzero_boxes_idxs] # (num_boxes, num_classes)
+            gt_bboxes = gt_bboxes[nonzero_boxes_idxs]               # (num_boxes, 4)
+            gt_classes = gt_classes[nonzero_boxes_idxs]             # (num_boxes, num_classes)
 
             # classes to one-hot encode
-            gt_labels_idxs = gt_classes.argmax(-1, keepdim=True) # (num_boxes, num_classes), int64
-            gt_labels = gt_labels_idxs.squeeze(-1) # (num_boxes), int64
+            gt_labels_idxs = gt_classes.argmax(-1, keepdim=True)    # (num_boxes, num_classes), int64
+            gt_labels = gt_labels_idxs.squeeze(-1)                  # (num_boxes), int64
             targets.append(dict(
-                boxes=gt_bboxes.mul(imgsz[[1, 0, 1, 0]]), # scale boxes to image size
+                boxes=gt_bboxes.mul(imgsz[[1, 0, 1, 0]]),           # scale boxes to image size
                 labels=gt_labels
             ))
 
