@@ -97,6 +97,17 @@ class DetectionLoss:
     #         out[..., :4] = xywh2xyxy(out[..., :4].mul_(scale_tensor))
     #     return out
 
+    def preprocess(self, targets: torch.Tensor):
+        # remove zero padding assuming padding is from the end of tensors
+        bs, nb, ne = targets.shape
+        bboxes, scores = targets.split((4, self.nc), 2)
+        max_bboxes = torch.count_nonzero(bboxes.sum(-1), dim=1).max()
+        if max_bboxes == 0:
+            return torch.zeros(bs, 0, ne, device=self.device)
+        targets = targets[:, :max_bboxes, :]
+        assert targets.shape == (bs, max_bboxes, ne)
+        return targets.contiguous()
+
     def bbox_decode(self, anchor_points, pred_dist):
         """Decode predicted object bounding box coordinates from anchor points and distribution."""
         if self.use_dfl:
@@ -127,11 +138,12 @@ class DetectionLoss:
         # targets = torch.cat((batch["batch_idx"].view(-1, 1), batch["bboxes"], batch["cls"]), 1)
         # (bs, n_max_boxes, cls + 4), scale_tensor = (w, h, w, h)
         # targets = self.preprocess(targets.to(self.device), batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
+        targets = self.preprocess(targets)
 
         gt_bboxes, gt_scores = targets.split((4, self.nc), 2)  # xywh, num_classes
-        gt_bboxes = xywh2xyxy(gt_bboxes) # xyxy
-        gt_bboxes = gt_bboxes.mul_(imgsz[[1, 0, 1, 0]]) # scaled to image size
-        mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0.0)
+        gt_bboxes = xywh2xyxy(gt_bboxes)
+        gt_bboxes = gt_bboxes.mul(imgsz[[1, 0, 1, 0]]) # scaled to image size
+        mask_gt = gt_bboxes.sum(2, keepdim=True).gt(0.0)
 
         # Pboxes
         pred_bboxes = self.bbox_decode(anchor_points, pred_distri)  # xyxy, (b, h*w, 4)

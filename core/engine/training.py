@@ -62,11 +62,14 @@ def do_train(cfg: CfgNode,
     det_loss = DetectionLoss(num_classes=model.get_num_classes(),
                              strides=model.get_strides(),
                              dfl_bins=model.get_dfl_num_bins(),
-                             loss_box_k=cfg.SOLVER.LOSS_BOX_WEIGHT,
-                             loss_dfl_k=cfg.SOLVER.LOSS_DFL_WEIGHT,
-                             loss_cls_k=cfg.SOLVER.LOSS_CLS_WEIGHT,
+                             loss_box_k=cfg.LOSS.BOX_WEIGHT,
+                             loss_dfl_k=cfg.LOSS.DFL_WEIGHT,
+                             loss_cls_k=cfg.LOSS.CLS_WEIGHT,
                              device=device,
-                             tal_topk=cfg.SOLVER.TAL_TOPK)
+                             tal_topk=cfg.LOSS.TAL_TOPK)
+    
+    # solver parameters
+    acc_grad = cfg.SOLVER.GRAD_ACCUM_ITERS
 
     # epoch loop
     for epoch in range(start_epoch, end_epoch):
@@ -91,21 +94,19 @@ def do_train(cfg: CfgNode,
             global_step = epoch * iters_per_epoch + iteration
 
             # get data
-            images = data_entry["img"]                              # (B, T, C, H, W)
-            bboxes = data_entry["bbox"]                              # (B, T, max_targets, 4)
-            classes = data_entry["cls"]                             # (B, T, max_targets, num_classes)
+            images = data_entry["img"].to(device)                   # (B, T, C, H, W)
+            bboxes = data_entry["bbox"].to(device)                  # (B, T, max_targets, 4)
+            classes = data_entry["cls"].to(device)                  # (B, T, max_targets, num_classes)
 
             cur_image = images[:, -1]                               # (B, C, H, W)
             cur_bboxes = bboxes[:, -1]                              # (B, max_targets, 4)
             cur_classes = classes[:, -1]                            # (B, max_targets, num_classes)
             cur_targets = torch.cat([cur_bboxes, cur_classes], -1)  # (B, max_targets, 4 + num_classes)
 
-            cur_image = cur_image.to(device)
-            cur_targets = cur_targets.to(device)
+            clip = images.permute(0, 2, 1, 3, 4)                    # (B, T, C, H, W) -> (B, C, T, H, W)
 
             # forward model
-            output_y, output_x = model(cur_image)                   # 3 x (B, C, Hi, Wi)
-            output_y = output_y.permute(0, 2, 1)
+            output_x = model(clip, cur_image)                       # 3 x (B, C, Hi, Wi)
 
             # calculate loss
             losses = det_loss(output_x, cur_targets)
@@ -113,20 +114,24 @@ def do_train(cfg: CfgNode,
             loss_box, loss_cls, loss_dfl = losses[1]
 
             # optimize model
-            optimizer.zero_grad()
+            loss = loss / acc_grad
             loss.backward()
-            optimizer.step()
 
-            # select random samples to tensorboard
-            select_samples(limit=cfg.TENSORBOARD.BEST_SAMPLES_NUM,
-                           accumulator=stats['random_samples'],
-                           image=cur_image.detach(),
-                           targets=cur_targets.detach(),
-                           preds=output_y.detach(),
-                           metric=torch.rand(cur_image.shape[0], device=device),
-                           conf_thresh=cfg.TENSORBOARD.CONF_THRESH,
-                           min_metric_better=False,
-                           image_transforms=tb_img_transforms)
+            if (iteration + 1) % acc_grad == 0:
+                nn.utils.clip_grad_value_(model.parameters(), clip_value=2.0)
+                optimizer.step()
+                optimizer.zero_grad()
+
+            # # select random samples to tensorboard
+            # select_samples(limit=cfg.TENSORBOARD.BEST_SAMPLES_NUM,
+            #                accumulator=stats['random_samples'],
+            #                image=cur_image.detach(),
+            #                targets=cur_targets.detach(),
+            #                preds=output_y.detach(),
+            #                metric=torch.rand(cur_image.shape[0], device=device),
+            #                conf_thresh=cfg.TENSORBOARD.CONF_THRESH,
+            #                min_metric_better=False,
+            #                image_transforms=tb_img_transforms)
 
             # update stats
             stats['loss_sum'] += loss.item()

@@ -2,7 +2,7 @@ import math
 import torch
 import logging
 import torch.nn as nn
-from typing import List
+from typing import Sequence
 from core.config import CfgNode
 from core.modeling.backbone2d.yolov8 import Conv
 from core.utils.model_zoo import load_state_dict
@@ -65,8 +65,8 @@ class Detect(nn.Module):
         """Concatenates and returns predicted bounding boxes and class probabilities."""
         for i in range(self.nl):
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
-        # if self.training:  # Training path
-        #     return x
+        if self.training:  # Training path
+            return x
         y = self._inference(x)
         # return y if self.export else (y, x)
         return y, x # TODO: return only y
@@ -102,15 +102,12 @@ class Detect(nn.Module):
 
         return torch.cat((dbox, cls.sigmoid()), 1)
 
-    def bias_init(self):
-        """Initialize Detect() biases, WARNING: requires stride availability."""
-        for a, b, s in zip(self.cv2, self.cv3, self.stride):
+    def bias_init(self, img_w: int, strides: Sequence[float]):
+        for a, b, s in zip(self.cv2, self.cv3, strides):
             a[-1].bias.data[:] = 1.0  # box
-            # TODO: why 640 as magic number! what to do if (H != W)?
-            b[-1].bias.data[: self.nc] = math.log(5 / self.nc / (640 / s) ** 2) # cls (.01 objects, 80 classes, 640 img)
+            b[-1].bias.data[: self.nc] = math.log(5 / self.nc / (img_w / s) ** 2) # cls (.01 objects, 80 classes, 640 img)
 
     def decode_bboxes(self, bboxes, anchors):
-        """Decode bounding boxes."""
         return dist2bbox(bboxes, anchors, xywh=True, dim=1)
 
     @staticmethod
@@ -152,20 +149,18 @@ def initialize_weights(model: nn.Module):
 
 
 def build_yolov8(cfg: CfgNode,
-                 channels: List[int],
-                 strides: List[float]) -> nn.Module:
+                 channels: Sequence[int],
+                 strides: Sequence[float]) -> nn.Module:
     logger = logging.getLogger('CORE')
     cfg_head = cfg.MODEL.HEAD
 
     model = Detect(nc=cfg_head.NUM_CLASSES, ch=channels)
-
-    # strides must be provided before initing bias
     model.stride = torch.tensor(strides)
 
     # bias must be inited once before training
     # if pretrained weights are provided,
     # bias parameters will be overrided
-    model.bias_init()
+    model.bias_init(cfg.INPUT.IMAGE_SIZE[0], model.stride)
 
     # common parameters must be inited always
     initialize_weights(model)

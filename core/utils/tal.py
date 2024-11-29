@@ -183,14 +183,15 @@ class TaskAlignedAssigner(nn.Module):
         # Assigned target labels, (b, 1)
         batch_ind = torch.arange(end=self.bs, dtype=torch.int64, device=gt_scores.device)[..., None]
         target_gt_idx = target_gt_idx + batch_ind * self.n_max_boxes  # (b, h*w)
-        target_scores = gt_scores.long().view(-1, gt_scores.shape[-1])[target_gt_idx]
+        # target_scores = gt_scores.long().view(-1, gt_scores.shape[-1])[target_gt_idx]
+        target_scores = gt_scores.view(-1, gt_scores.shape[-1])[target_gt_idx]
 
         # Assigned target boxes, (b, max_num_obj, 4) -> (b, h*w, 4)
         target_bboxes = gt_bboxes.view(-1, gt_bboxes.shape[-1])[target_gt_idx]
 
         # Assigned target scores
-        target_scores.clamp_(0)
-        fg_scores_mask = fg_mask[:, :, None].repeat(1, 1, self.num_classes)  # (b, h*w, 80)
+        # target_scores.clamp_(0)
+        fg_scores_mask = fg_mask[:, :, None].repeat(1, 1, self.num_classes)  # (b, h*w, num_classes)
         target_scores = torch.where(fg_scores_mask > 0, target_scores, 0)
 
         return target_bboxes, target_scores
