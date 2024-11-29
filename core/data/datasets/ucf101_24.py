@@ -10,6 +10,8 @@ from core.utils.ops import xyxy2xywh
 
 
 class UCF101_24Dataset(Dataset):
+    num_classes = 24
+
     def __init__(self,
                  cfg: CfgNode,
                  data_path: str,
@@ -18,11 +20,10 @@ class UCF101_24Dataset(Dataset):
         self.seqs = self._parse_seqs(anno_path,
                                      data_path,
                                      cfg.DATASET.SEQUENCE_LENGTH,
-                                     cfg.DATASET.SEQUENCE_STRIDE)
+                                     cfg.DATASET.SEQUENCE_STRIDE,
+                                     cfg.DATASET.SEQUENCE_DILATE)
         self.transforms = transforms
         self.max_labels = cfg.INPUT.PAD_LABELS_TO
-        self.num_classes = cfg.MODEL.HEAD.NUM_CLASSES
-        assert self.num_classes == 24
 
     def __len__(self):
         return len(self.seqs)
@@ -31,7 +32,8 @@ class UCF101_24Dataset(Dataset):
                     anno_root: str,
                     data_root: str,
                     seq_length: int,
-                    seq_stride: int = 1) -> List[List[Tuple[str, dict]]]:
+                    seq_stride: int,
+                    seq_dilate: int) -> List[List[Tuple[str, dict]]]:
         result = []
 
         # parse seqpaths
@@ -39,61 +41,56 @@ class UCF101_24Dataset(Dataset):
             head, ssd = os.path.split(path)
             sd = os.path.split(head)[1]
             return os.path.join(sd, ssd)
-
         seqpaths = sorted(glob(os.path.join(anno_root, "*/*")))
         seqpaths = [get_seqpath(s) for s in seqpaths]
 
         # prepare seqs
         for seqpath in seqpaths:
             annoimgs = []
+            imgs = sorted(glob(os.path.join(data_root, seqpath, "*.jpg")))
             annos = sorted(glob(os.path.join(anno_root, seqpath, "*.txt")))
-            for anno in annos:
-                filename = os.path.basename(anno)
+            for img in imgs:
+                filename = os.path.basename(img)
                 filename = os.path.splitext(filename)[0]
-                img = os.path.join(data_root, seqpath, filename + ".jpg")
-                annoimgs.append((anno, img))
-
+                anno = os.path.join(anno_root, seqpath, filename + ".txt")
+                if anno not in annos:
+                    anno = None
+                annoimgs.append((img, anno))
             # split on seqs
-            while seq_length * seq_stride <= len(annoimgs):
-                anno_seq, annoimgs = annoimgs[:seq_length:seq_stride], annoimgs[seq_length * seq_stride:]
+            while seq_length * seq_dilate <= len(annoimgs):
+                anno_seq, annoimgs = annoimgs[:seq_length:seq_dilate], annoimgs[seq_stride:]
                 result.append(anno_seq)
 
         return result
 
     def __getitem__(self, idx):
-        imgs = []
-        bboxes = []
-        classes = []
-
-        for apath, ipath in self.seqs[idx]:
+        imgs, bboxes, classes = [], [], []
+        for ipath, apath in self.seqs[idx]:
             # read image
             img = cv.imread(ipath, cv.IMREAD_COLOR)
-            h, w = img.shape[0:2]
             imgs.append(img)
 
             # read objects
             box = np.zeros(shape=(self.max_labels, 4), dtype=np.float32)
             cls = np.zeros(shape=(self.max_labels, self.num_classes), dtype=np.float32)
-
-            with open(apath, 'r') as f:
-                for i, line in enumerate(f.readlines()):
-                    elements = list(map(float, line.split()))
-                    cls_idx = int(elements[0]) - 1 # TODO: check - 1
-                    if cls_idx < self.num_classes:
-                        assert self.num_classes > cls_idx >= 0
-                        cls[i][cls_idx] = 1.0
-                        box[i] = xyxy2xywh(np.asarray(elements[1:5]))
-
-            box[:, 0::2] = box[:, 0::2] / w
-            box[:, 1::2] = box[:, 1::2] / h
-
+            if apath != None:
+                with open(apath, 'r') as f:
+                    for i, line in enumerate(f.readlines()):
+                        elements = list(map(float, line.split()))
+                        cls_idx = int(elements[0]) - 1
+                        if cls_idx < self.num_classes:
+                            assert self.num_classes > cls_idx >= 0
+                            cls[i][cls_idx] = 1.0
+                            box[i] = xyxy2xywh(np.asarray(elements[1:5]))
+            box[:, 0::2] /= img.shape[1]
+            box[:, 1::2] /= img.shape[0]
             bboxes.append(box)
             classes.append(cls)
 
         item = {}
-        item['img'] = np.stack(imgs, 0) # (T, H, W, C)
-        item['bbox'] = np.stack(bboxes, 0) # (T, max_labels, 4)
-        item['cls'] = np.stack(classes, 0) # (T, max_labels, num_classes)
+        item['img'] = np.stack(imgs, 0)     # (T, H, W, C)
+        item['bbox'] = np.stack(bboxes, 0)  # (T, max_labels, 4)
+        item['cls'] = np.stack(classes, 0)  # (T, max_labels, num_classes)
 
         # apply transforms
         if self.transforms:
