@@ -1,4 +1,5 @@
 import torch
+import logging
 from torch import nn
 from typing import List
 from core.config import CfgNode
@@ -61,6 +62,8 @@ def initialize_weights(model: nn.Module):
 
 
 def build_stad(cfg: CfgNode) -> nn.Module:
+    logger = logging.getLogger('CORE')
+
     # build 2d backbone
     backbone2d = build_backbone2d(cfg)
 
@@ -91,5 +94,9 @@ def build_stad(cfg: CfgNode) -> nn.Module:
 
     model = STAD(backbone2d, backbone3d, feature_fusion, head)
     initialize_weights(model)
+
+    # model size
+    total_params = sum(p.numel() for p in model.parameters())
+    logger.info(f"Model built. Parameters in total: {total_params}")
 
     return model
