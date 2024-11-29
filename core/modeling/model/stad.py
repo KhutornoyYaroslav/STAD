@@ -39,7 +39,8 @@ class STAD(nn.Module):
         f = self.feature_fusion(f2d, f3d)
 
         # class head
-        y = self.head(f)
+        # y = self.head(f)
+        y = self.head(list(f))
         return y
     
     def get_num_classes(self) -> int:
@@ -50,6 +51,13 @@ class STAD(nn.Module):
     
     def get_dfl_num_bins(self) -> int:
         return self.head.dfl_bins
+
+
+def initialize_weights(model: nn.Module):
+    for m in model.modules():
+        if isinstance(m, nn.BatchNorm2d):
+            m.eps = 1e-3
+            m.momentum = 0.03
 
 
 def build_stad(cfg: CfgNode) -> nn.Module:
@@ -81,4 +89,7 @@ def build_stad(cfg: CfgNode) -> nn.Module:
     head_in_channels = len(channels2d) * [interchannels]
     head = build_head(cfg, channels=head_in_channels, strides=strides)
 
-    return STAD(backbone2d, backbone3d, feature_fusion, head)
+    model = STAD(backbone2d, backbone3d, feature_fusion, head)
+    initialize_weights(model)
+
+    return model
