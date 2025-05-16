@@ -80,7 +80,7 @@ def build_stad(cfg: CfgNode) -> nn.Module:
     backbone3d = build_backbone3d(cfg)
 
     # evaluate channels
-    x = torch.zeros(size=(1, 3, 5, 256, 256), dtype=torch.float32) # (b, c, t, h, w)
+    x = torch.zeros(size=(1, 3, 16, 256, 256), dtype=torch.float32) # (b, c, t, h, w)
     features3d = backbone3d(x)
     channels3d = features3d.shape[1]
 
