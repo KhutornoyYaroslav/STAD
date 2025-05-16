@@ -77,11 +77,12 @@ def main():
     parser.add_argument("opts", default=None, nargs=argparse.REMAINDER,
                         help="Modify config options using the command-line")
     args = parser.parse_args()
-    NUM_GPUS = 1
-    args.distributed = False
-    args.num_gpus = NUM_GPUS
+    # TODO: not used?
+    # NUM_GPUS = 1
+    # args.distributed = False
+    # args.num_gpus = NUM_GPUS
 
-    # enable cudnn auto-tuner to find the best algorithm to use for your hardware
+    # enable cudnn auto-tuner
     torch.manual_seed(1)
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
