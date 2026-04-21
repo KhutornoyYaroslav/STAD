@@ -26,8 +26,11 @@ def create_loader(dataset: Dataset,
     else:
         sampler = SequentialSampler(dataset)
 
-    batch_sampler = BatchSampler(sampler=sampler, batch_size=batch_size, drop_last=False)
-    data_loader = DataLoader(dataset, batch_sampler=batch_sampler, num_workers=num_workers, pin_memory=pin_memory)
+    batch_sampler = BatchSampler(sampler=sampler, batch_size=batch_size, drop_last=True)
+    data_loader = DataLoader(dataset,
+                             batch_sampler=batch_sampler,
+                             num_workers=num_workers,
+                             pin_memory=pin_memory)
 
     return data_loader
 
@@ -42,6 +45,8 @@ def make_data_loader(cfg, is_train: bool = True) -> Optional[DataLoader]:
         data_paths = cfg.DATASET.VALID_DATA_PATHS
         anno_paths = cfg.DATASET.VALID_ANNO_PATHS
 
+    ds_type_str = "train" if is_train else "valid"
+
     # build transforms
     transforms = build_transforms(cfg, is_train)
 
@@ -49,13 +54,14 @@ def make_data_loader(cfg, is_train: bool = True) -> Optional[DataLoader]:
     datasets = []
     for data_path, anno_path in zip(data_paths, anno_paths):
         dataset = build_dataset(cfg, data_path, anno_path, transforms)
-        logger.info(f"Loaded dataset from '{data_path}'. Size: {len(dataset)}")
+        logger.info(f"Loaded {ds_type_str} dataset from '{data_path}'. Size: {len(dataset)}")
         datasets.append(dataset)
 
     if not datasets:
         return None
 
     dataset = ConcatDataset(datasets)
+    logger.info(f"Total {ds_type_str} dataset size: {len(dataset)}")
 
     # create dataloader
     shuffle = is_train
