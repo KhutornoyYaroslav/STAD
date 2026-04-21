@@ -22,6 +22,7 @@ LOSS:
   DFL_WEIGHT: 1.5
   TAL_TOPK: 10
 MODEL:
+  ARCHITECTURE: YOLOv8
   BACKBONE2D:
     ARCHITECTURE: yolov8m
     FREEZE: False
@@ -40,6 +41,9 @@ MODEL:
     NUM_CLASSES: 80
     PRETRAINED_WEIGHTS: https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8m.pt
   PRETRAINED_WEIGHTS:
+  TEMPORAL_FUSION:
+    LEARNABLE_INIT_STATE: False
+    STATEFUL_TRAINING: False
 OUTPUT_DIR: outputs/test
 SOLVER:
   BATCH_SIZE: 32

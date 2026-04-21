@@ -6,6 +6,7 @@ _CFG = CN()
 # Model
 # ---------------------------------------------------------------------------- #
 _CFG.MODEL = CN()
+_CFG.MODEL.ARCHITECTURE = "yolov8"
 _CFG.MODEL.DEVICE = "cuda"
 _CFG.MODEL.PRETRAINED_WEIGHTS = ""
 
@@ -31,6 +32,13 @@ _CFG.MODEL.BACKBONE3D.FREEZE = False
 # ---------------------------------------------------------------------------- #
 _CFG.MODEL.FEATURE_FUSION = CN()
 _CFG.MODEL.FEATURE_FUSION.INTER_CHANNELS = 256
+
+# ---------------------------------------------------------------------------- #
+# TemporalFusion
+# ---------------------------------------------------------------------------- #
+_CFG.MODEL.TEMPORAL_FUSION = CN()
+_CFG.MODEL.TEMPORAL_FUSION.STATEFUL_TRAINING = False
+_CFG.MODEL.TEMPORAL_FUSION.LEARNABLE_INIT_STATE = False
 
 # ---------------------------------------------------------------------------- #
 # Head
