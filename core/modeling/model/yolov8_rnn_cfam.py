@@ -5,17 +5,20 @@ from core.config import CfgNode
 from core.modeling.head import build_head
 from core.modeling.backbone2d import build_backbone2d
 from core.modeling.temporal import TemporalFusion
+from core.modeling.attention import CFAMFusion2
 
 
-class YOLOv8RNN(nn.Module):
+class YOLOv8RNNCFAM(nn.Module):
     def __init__(self,
                  backbone2d: nn.Module,
                  head: nn.Module,
-                 temporal_fusion: nn.Module):
-        super(YOLOv8RNN, self).__init__()
+                 temporal_fusion: nn.Module,
+                 cfam_fusion: nn.Module):
+        super(YOLOv8RNNCFAM, self).__init__()
         self.backbone2d = backbone2d
         self.head = head
         self.temporal_fusion = temporal_fusion
+        self.cfam_fusion = cfam_fusion
 
     def prepare_inference(self, img_w: int, img_h: int):
         batch_sizes = []
@@ -42,14 +45,19 @@ class YOLOv8RNN(nn.Module):
             f2d[i] = f2d[i].view(B, T, *f2d[i].shape[1:])
 
         # temporal fusion
-        f3d = self.temporal_fusion(f2d)     # (b, t, ci, hi, wi)
+        f3d = self.temporal_fusion(f2d)   # (b, t, ci, hi, wi)
 
-        # from (b, t, c, h, w) to (b*t, c, h, w)
-        for i in range(len(f3d)):  
+        # from (b, t, ci, hi, wi) to  (b*t, ci, hi, wi)
+        assert len(f2d) == len(f3d)
+        for i in range(len(f2d)):
+            f2d[i] = f2d[i].view(-1, *f2d[i].shape[2:])
             f3d[i] = f3d[i].view(-1, *f3d[i].shape[2:])
 
+        # cfam fusion
+        f = self.cfam_fusion(f2d, f3d)
+
         # class head
-        y = self.head(f3d)
+        y = self.head(f)
 
         return y
 
@@ -70,7 +78,7 @@ def initialize_weights(model: nn.Module):
             m.momentum = 0.03
 
 
-def build_yolov8rnn(cfg: CfgNode) -> nn.Module:
+def build_yolov8rnncfam(cfg: CfgNode) -> nn.Module:
     # build 2d backbone
     backbone2d = build_backbone2d(cfg)
 
@@ -91,11 +99,22 @@ def build_yolov8rnn(cfg: CfgNode) -> nn.Module:
         learnable_init_state=cfg.MODEL.TEMPORAL_FUSION.LEARNABLE_INIT_STATE,
         residual_type=cfg.MODEL.TEMPORAL_FUSION.RESIDUAL_TYPE)
 
+    # build cfam fusion
+    channels3d = channels2d
+    interchannels = cfg.MODEL.FEATURE_FUSION.INTER_CHANNELS
+    feature_fusion = CFAMFusion2(channels2d, channels3d, interchannels)
+
     # build head
-    head = build_head(cfg, channels=channels2d, strides=strides)
+    head_in_channels = len(channels2d) * [interchannels]
+    head = build_head(cfg, channels=head_in_channels, strides=strides)
 
     # build model
-    model = YOLOv8RNN(backbone2d, head, temporal_fusion)
+    model = YOLOv8RNNCFAM(
+        backbone2d,
+        head,
+        temporal_fusion,
+        feature_fusion)
+
     initialize_weights(model)
 
     return model

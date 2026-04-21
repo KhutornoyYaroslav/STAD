@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from typing import Sequence
+from typing import Sequence, List
 
 
 class CAM(nn.Module):
@@ -106,5 +106,31 @@ class CFAMFusion(nn.Module):
                 ft_box = torch.cat((ft2D[0], ft_3D_t), dim = 1)
                 ft_cls = torch.cat((ft2D[1], ft_3D_t), dim = 1)
                 fts.append([self.box[idx](ft_box), self.cls[idx](ft_cls)])
+
+        return fts
+
+
+class CFAMFusion2(nn.Module):
+    def __init__(self,
+                 ch_2d: Sequence[int],
+                 ch_3d: Sequence[int],
+                 interchannels: int):
+        super().__init__()
+        assert len(ch_2d) == len(ch_3d)
+        layers = []
+        for channels2D, channels3D in zip(ch_2d, ch_3d):
+            layers.append(CFAMBlock(channels2D + channels3D, interchannels))
+        self.fusion = nn.ModuleList(layers)
+
+    def forward(
+            self,
+            ft_2D: Sequence[torch.Tensor], 
+            ft_3D: Sequence[torch.Tensor]) -> List[torch.Tensor]:
+        assert len(ft_2D) == len(ft_3D)
+
+        fts = []
+        for i in range(len(ft_2D)):
+            ft = torch.cat((ft_2D[i], ft_3D[i]), dim=1)
+            fts.append(self.fusion[i](ft))
 
         return fts
