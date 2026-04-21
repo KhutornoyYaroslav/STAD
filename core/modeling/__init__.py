@@ -3,6 +3,7 @@ from torch import nn
 from core.config import CfgNode
 from .model.yolov8 import build_yolov8
 from .model.yolov8_rnn import build_yolov8rnn
+from .model.yolov8_rnn_cfam import build_yolov8rnncfam
 
 
 def build_model(cfg: CfgNode) -> nn.Module:
@@ -14,6 +15,8 @@ def build_model(cfg: CfgNode) -> nn.Module:
         model = build_yolov8(cfg)
     elif arch == 'yolov8rnn':
         model = build_yolov8rnn(cfg)
+    elif arch == 'yolov8rnncfam':
+        model = build_yolov8rnncfam(cfg)
     else:
         raise NotImplementedError(f"Model architecture '{arch}' hasn't been implemented yet")
 
