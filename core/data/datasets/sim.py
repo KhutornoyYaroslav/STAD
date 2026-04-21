@@ -118,12 +118,12 @@ class SIMDataset(Dataset):
                     b[1::2] *= h
                     tl = b[:2] - (b[2:4] / 2)
                     br = b[:2] + (b[2:4] / 2)
-                    cv.rectangle(img, tl.astype(np.int32), br.astype(np.int32), (0, 255, 0), 2)
+                    cv.rectangle(img, tl.astype(np.int32), br.astype(np.int32), (0, 255, 0), 1)
 
                     # draw labels
-                    pt = tl.astype(np.int32) + [0, 10]
+                    pt = tl.astype(np.int32) + [2, 15]
                     for idx in np.where(c == 1.0)[0]:
-                        text = f"{idx} {c[idx]:.2f}"
+                        text = f"{idx}"# {c[idx]:.2f}"
                         cv.putText(img, text, pt, cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
                         pt += [0, 10]
 
