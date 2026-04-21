@@ -1,5 +1,4 @@
 import torch
-import logging
 from torch import nn
 from typing import List
 from core.config import CfgNode
@@ -8,7 +7,7 @@ from core.modeling.backbone2d import build_backbone2d
 from core.modeling.temporal import TemporalFusion
 
 
-class STAD(nn.Module):
+class YOLOv8RNN(nn.Module):
     def __init__(self,
                  backbone2d: nn.Module,
                  head: nn.Module,
@@ -24,15 +23,6 @@ class STAD(nn.Module):
             batch_sizes.append(int(img_w * img_h / s**2))
         self.temporal_fusion.prepare_inference(batch_sizes)
 
-    def inference_step(self, input: torch.Tensor):
-        """
-        args:
-            input (torch.Tensor) with shape (b, 1, c, h, w)
-        """
-        B, T, C, H, W = input.shape
-        assert T == 1
-        return self.forward(input)
-
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         """
         args:
@@ -44,23 +34,23 @@ class STAD(nn.Module):
         B, T, C, H, W = input.shape
 
         # get 2d features
-        input = input.reshape(-1, C, H, W) # from (b, t, c, h, w) to (b*t, c, h, w)
+        input = input.view(-1, C, H, W)                          # from (b, t, c, h, w) to (b*t, c, h, w)
         f2d = self.backbone2d(input)
 
         # reshape
         f2d_reshaped = []
         for f in f2d:
             _, F_C, F_H, F_W = f.shape
-            f2d_reshaped.append(f.reshape(B, T, F_C, F_H, F_W)) # from (b*t, ci, hi, wi) to (b, t, ci, hi, wi)
+            f2d_reshaped.append(f.view(B, T, F_C, F_H, F_W))     # from (b*t, ci, hi, wi) to (b, t, ci, hi, wi)
 
         # temporal fusion
-        temporal_f2ds = self.temporal_fusion(f2d_reshaped) # (b, t, ci, hi, wi)
+        temporal_f2ds = self.temporal_fusion(f2d_reshaped)          # (b, t, ci, hi, wi)
 
         # class head
         temporal_f2ds_reshaped = []
         for f in temporal_f2ds:
             B, T, F_C, F_H, F_W = f.shape
-            f = f.reshape(-1, F_C, F_H, F_W) # from (b, t, c, h, w) to (b*t, c, h, w)
+            f = f.view(-1, F_C, F_H, F_W)                        # from (b, t, c, h, w) to (b*t, c, h, w)
             temporal_f2ds_reshaped.append(f)
         y = self.head(temporal_f2ds_reshaped)
 
@@ -83,9 +73,7 @@ def initialize_weights(model: nn.Module):
             m.momentum = 0.03
 
 
-def build_stad(cfg: CfgNode) -> nn.Module:
-    logger = logging.getLogger('CORE')
-
+def build_yolov8rnn(cfg: CfgNode) -> nn.Module:
     # build 2d backbone
     backbone2d = build_backbone2d(cfg)
 
@@ -102,18 +90,14 @@ def build_stad(cfg: CfgNode) -> nn.Module:
     temporal_fusion = TemporalFusion(
         in_channels=channels2d,
         hidden_channels=channels2d,
-        stateful_training=False,
-        learnable_init_state=False)
+        stateful_training=cfg.MODEL.TEMPORAL_FUSION.STATEFUL_TRAINING,
+        learnable_init_state=cfg.MODEL.TEMPORAL_FUSION.LEARNABLE_INIT_STATE)
 
     # build head
     head = build_head(cfg, channels=channels2d, strides=strides)
 
     # build model
-    model = STAD(backbone2d, head, temporal_fusion)
+    model = YOLOv8RNN(backbone2d, head, temporal_fusion)
     initialize_weights(model)
-
-    # model size
-    total_params = sum(p.numel() for p in model.parameters())
-    logger.info(f"Model built. Parameters in total: {total_params}")
 
     return model

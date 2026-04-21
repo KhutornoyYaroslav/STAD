@@ -53,26 +53,26 @@ class TemporalFusion(nn.Module):
             B, T, C, H, W = input.shape
 
             # in conv
-            x = input.reshape(-1, C, H, W)  # from (b, t, c, h, w) to (b*t, c, h, w)
+            x = input.view(-1, C, H, W)  # from (b, t, c, h, w) to (b*t, c, h, w)
             x = self.in_convs[id](x)
 
             # rnn block
-            x = x.reshape(B, T, C, H, W)    # from (b*t, c, h, w) to (b, t, c, h, w)
-            x = x.reshape(B, T, C, -1)      # from (b, t, c, h, w) to (b, t, c, h*w)
+            x = x.view(B, T, C, H, W)    # from (b*t, c, h, w) to (b, t, c, h, w)
+            x = x.view(B, T, C, -1)      # from (b, t, c, h, w) to (b, t, c, h*w)
             x = x.permute(0, 3, 1, 2)       # from (b, t, fc, fh*fw) to (b, fh*fw, t, fc)
-            x = x.reshape(-1, T, C)         # from (b, h*w, t, c) to (b*h*w, t, c)
+            x = x.view(-1, T, C)         # from (b, h*w, t, c) to (b*h*w, t, c)
             x = self.rnn_blocks[id](x)
 
             # concat
-            x = x.reshape(B, -1, T, C)      # from (b*h*w, t, c) to (b, h*w, t, c)
+            x = x.view(B, -1, T, C)      # from (b*h*w, t, c) to (b, h*w, t, c)
             x = x.permute(0, 2, 3, 1)       # from (b, h*w, t, c) to (b, t, c, h*w)
-            x = x.reshape(B, T, C, H, W)    # from (b, t, c, h*w) to (b, t, c, h, w)
+            x = x.view(B, T, C, H, W)    # from (b, t, c, h*w) to (b, t, c, h, w)
             x = torch.concat([input, x], 2)
 
             # out conv
-            x = x.reshape(-1, 2*C, H, W)      # from (b, t, 2*c, h, w) to (b*t, 2*c, h, w)
+            x = x.view(-1, 2*C, H, W)      # from (b, t, 2*c, h, w) to (b*t, 2*c, h, w)
             x = self.out_convs[id](x)
-            x = x.reshape(B, T, C, H, W)    # from (b*t, c, h, w) to (b, t, c, h, w)
+            x = x.view(B, T, C, H, W)    # from (b*t, c, h, w) to (b, t, c, h, w)
 
             outputs.append(x)
 
