@@ -6,11 +6,11 @@ from torch import nn
 from typing import Any
 from core.utils import dist_util
 from core.config import cfg, CfgNode
+from core.modeling import build_model
 from core.data import make_data_loader
 from core.engine.training import do_train
 from core.utils.logger import setup_logger
 from core.utils.checkpoint import CheckPointer
-from core.modeling.model.stad import build_stad
 from core.engine.optimization import make_optimizer
 
 
@@ -19,7 +19,7 @@ def train_model(cfg: CfgNode, args: Any) -> nn.Module:
     device = torch.device(cfg.MODEL.DEVICE)
 
     # create model
-    model = build_stad(cfg)
+    model = build_model(cfg)
     model.to(device)
 
     # create data loader
@@ -77,10 +77,6 @@ def main():
     parser.add_argument("opts", default=None, nargs=argparse.REMAINDER,
                         help="Modify config options using the command-line")
     args = parser.parse_args()
-    # TODO: not used?
-    # NUM_GPUS = 1
-    # args.distributed = False
-    # args.num_gpus = NUM_GPUS
 
     # enable cudnn auto-tuner
     torch.manual_seed(1)
