@@ -1,6 +1,6 @@
 import torch
-from torch import nn
 import logging
+from torch import nn
 from core.config import CfgNode
 
 
