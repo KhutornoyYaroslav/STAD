@@ -3,8 +3,11 @@ import torch
 import cv2 as cv
 import numpy as np
 from core.utils.ops import xywh2xyxy, xyxy2xywh
-from core.data.transforms.functional import make_array_divisible_by
 from typing import Dict, Tuple, Sequence, Any, Optional, Union, List
+from core.data.transforms.functional import (
+    make_array_divisible_by, 
+    make_size_divisible_by
+)
 
 
 class BaseTransform:
@@ -150,9 +153,9 @@ class ConvertColor(BaseTransform):
 
 
 class Resize(BaseTransform):
-    def __init__(self, size: Tuple[int, int]):
+    def __init__(self, size: Tuple[int, int], make_divisible_by: int = 1):
         super().__init__()
-        self.size = size
+        self.size = make_size_divisible_by(*size, make_divisible_by)
 
     def apply_img(self, img):
         res = []
@@ -167,9 +170,13 @@ class Resize(BaseTransform):
 
 
 class PadResize(BaseTransform):
-    def __init__(self, size: Tuple[int, int], border_value: int = 114):
+    def __init__(
+            self,
+            size: Tuple[int, int],
+            border_value: int = 114,
+            make_divisible_by: int = 1):
         super().__init__()
-        self.size = size
+        self.size = make_size_divisible_by(*size, make_divisible_by)
         self.border_value = border_value
 
     def _calc_pads(self, img_w: int, img_h: int) -> List[int]:
@@ -397,17 +404,21 @@ class RandomPerspective(BaseTransform):
     def __init__(self,
                  rotate: float = 0.0,
                  translate: float = 0.0,
-                 scale: float = 0.0,
+                 scale: float = 1.0,
                  shear: float = 0.0,
                  perspective: float = 0.0,
-                 border_value: int = 114):
+                 border_value: int = 114,
+                 probabilty: float = 0.5,
+                 keep_aspect: bool = True):
         super().__init__()
         self.rotate = np.clip(rotate, 0.0, 360.0)
         self.translate = np.clip(translate, 0.0, 1.0)
-        self.scale = np.clip(scale, 0.0, 0.9)
+        self.scale = np.clip(scale, 1.0, None)
         self.shear = np.clip(shear, 0.0, 90.0)
         self.perspective = np.clip(perspective, 0.0, 0.001)
         self.border_value = border_value
+        self.prob = np.clip(probabilty, 0.0, 1.0)
+        self.keep_aspect = keep_aspect
 
     def _construct_matrix(self, img_w: int, img_h: int) -> np.ndarray:
         # center
@@ -420,23 +431,36 @@ class RandomPerspective(BaseTransform):
         mat_p[2, 0] = np.random.uniform(-self.perspective, self.perspective)  # x perspective (about y)
         mat_p[2, 1] = np.random.uniform(-self.perspective, self.perspective)  # y perspective (about x)
 
-        # rotation and scale
+        # # rotation and scale
+        # mat_r = np.eye(3, dtype=np.float32)
+        # a = np.random.uniform(-self.rotate, self.rotate)
+        # s = np.random.uniform(1 - self.scale, 1 + self.scale)
+        # mat_r[:2] = cv.getRotationMatrix2D(angle=a, center=(0, 0), scale=s)
+
+        # scale
+        mat_sc = np.eye(3, dtype=np.float32)
+        mat_sc[0, 0] = np.random.uniform(1 / self.scale, self.scale)
+        if self.keep_aspect:
+            mat_sc[1, 1] = mat_sc[0, 0]
+        else:
+            mat_sc[1, 1] = np.random.uniform(1 / self.scale, self.scale)
+
+        # rotation
         mat_r = np.eye(3, dtype=np.float32)
         a = np.random.uniform(-self.rotate, self.rotate)
-        s = np.random.uniform(1 - self.scale, 1 + self.scale)
-        mat_r[:2] = cv.getRotationMatrix2D(angle=a, center=(0, 0), scale=s)
+        mat_r[:2] = cv.getRotationMatrix2D(angle=a, center=(0, 0), scale=1.0)
 
         # shear
-        mat_s = np.eye(3, dtype=np.float32)
-        mat_s[0, 1] = math.tan(np.random.uniform(-self.shear, self.shear) * math.pi / 180)  # x shear (deg)
-        mat_s[1, 0] = math.tan(np.random.uniform(-self.shear, self.shear) * math.pi / 180)  # y shear (deg)
+        mat_sh = np.eye(3, dtype=np.float32)
+        mat_sh[0, 1] = math.tan(np.random.uniform(-self.shear, self.shear) * math.pi / 180)  # x shear (deg)
+        mat_sh[1, 0] = math.tan(np.random.uniform(-self.shear, self.shear) * math.pi / 180)  # y shear (deg)
 
         # translation
         mat_t = np.eye(3, dtype=np.float32)
         mat_t[0, 2] = np.random.uniform(0.5 - self.translate, 0.5 + self.translate) * img_w  # x translation (pixels)
         mat_t[1, 2] = np.random.uniform(0.5 - self.translate, 0.5 + self.translate) * img_h  # y translation (pixels)
 
-        return mat_t @ mat_s @ mat_r @ mat_p @ mat_c
+        return mat_t @ mat_sh @ mat_r @ mat_sc @ mat_p @ mat_c
 
     def _box_candidates(self,
                         bbox1: np.ndarray, # original, (4, N), 'xyxy'
@@ -499,10 +523,203 @@ class RandomPerspective(BaseTransform):
         return xyxy2xywh(new_bbox)
 
     def __call__(self, data):
-        if 'img' in data:
-            h, w = data['img'].shape[1:3]
-            mat = self._construct_matrix(w, h)
-            self.apply_img(data['img'], mat)
+        if np.random.choice([0, 1], size=1, p=[1 - self.prob, self.prob]):
+            if 'img' in data:
+                h, w = data['img'].shape[1:3]
+                mat = self._construct_matrix(w, h)
+                self.apply_img(data['img'], mat)
+                if 'bbox' in data:
+                    data['bbox'] = self.apply_bbox(data['bbox'], w, h, mat)
+        return data
+
+
+class RandomCrop(BaseTransform):
+    def __init__(self, min_crop: float, probability: float, freeze_crop_y: bool = False):
+        super(RandomCrop, self).__init__()
+        self.min_crop = np.clip(min_crop, 0.0, 1.0)
+        self.prob = np.clip(probability, 0.0, 1.0)
+        self.freeze_crop_y = freeze_crop_y
+
+    def apply_img(self, img: np.ndarray, x: float, y: float, w: float, h: float) -> np.ndarray:
+        x_pix = int(x * img.shape[2])
+        y_pix = int(y * img.shape[1])
+        w_pix = int(w * img.shape[2])
+        h_pix = int(h * img.shape[1])
+
+        return img[:, y_pix:y_pix + h_pix, x_pix:x_pix + w_pix, :]
+
+    def apply_bbox(self, bbox: np.ndarray, x: float, y: float, w: float, h: float) -> np.ndarray:
+        # recalc coordinates
+        bbox = xywh2xyxy(bbox)
+        bbox[:, :, 0::2] = (bbox[:, :, 0::2] - x) / w
+        bbox[:, :, 1::2] = (bbox[:, :, 1::2] - y) / h
+        bbox = np.clip(bbox, 0.0, 1.0)
+        bbox = xyxy2xywh(bbox)
+
+        # filter empty bboxes
+        mask = bbox[..., 2] * bbox[..., 3] > 0
+        mask = np.expand_dims(mask, -1).repeat(4, -1).astype(np.int32)
+        bbox *= mask
+
+        return bbox
+
+    def apply_cls(self, cls: np.ndarray) -> Optional[Union[np.ndarray, torch.Tensor]]:
+        return cls
+
+    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if np.random.choice([0, 1], size=1, p=[1 - self.prob, self.prob]):
+            # sample crop coordinates
+            crop_w = min(self.min_crop + np.random.random() * (1.0 - self.min_crop), 1.0)
+            crop_h = min(self.min_crop + np.random.random() * (1.0 - self.min_crop), 1.0)
+            crop_x = np.random.random() * (1.0 - crop_w)
+            if self.freeze_crop_y:
+                crop_y = 1.0 - crop_h
+            else:
+                crop_y = np.random.random() * (1.0 - crop_h)
+
+            # apply crop to data
+            if 'img' in data:
+                data['img'] = self.apply_img(data['img'], crop_x, crop_y, crop_w, crop_h)
             if 'bbox' in data:
-                data['bbox'] = self.apply_bbox(data['bbox'], w, h, mat)
+                data['bbox'] = self.apply_bbox(data['bbox'], crop_x, crop_y, crop_w, crop_h)
+
+        return data
+
+
+class RandomMirror(BaseTransform):
+    def __init__(self, probability: float):
+        super(RandomMirror, self).__init__()
+        self.prob = np.clip(probability, 0.0, 1.0)
+
+    def apply_img(self, img: np.ndarray, flip_type: int) -> np.ndarray:
+        if flip_type in [0, 2]:
+            img = img[:, ::-1, :, :]
+        if flip_type in [1, 2]:
+            img = img[:, :, ::-1, :]
+        return img
+
+    def apply_bbox(self, bbox: np.ndarray, flip_type: int) -> np.ndarray:
+        if flip_type in [0, 2]:
+            bbox[..., 1] = 1.0 - bbox[..., 1]
+        if flip_type in [1, 2]:
+            bbox[..., 0] = 1.0 - bbox[..., 0]
+        return bbox
+
+    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if np.random.choice([0, 1], size=1, p=[1 - self.prob, self.prob]):
+            # flip_type: 0 - hor, 1 - vert, 2 - hor and vert
+            # flip_type  = np.random.randint(3)
+            flip_type = 1 # TODO: vert only
+            if 'img' in data:
+                data['img'] = self.apply_img(data['img'], flip_type)
+            if 'bbox' in data:
+                data['bbox'] = self.apply_bbox(data['bbox'], flip_type)
+        return data
+
+
+class RandomContrast(BaseTransform):
+    def __init__(self, lower: float = 0.75, upper: float = 1.25, probability: float = 0.5):
+        super(RandomContrast, self).__init__()
+        self.lower = lower
+        self.upper = upper
+        assert self.upper >= self.lower, "contrast upper must be >= lower."
+        assert self.lower >= 0, "contrast lower must be non-negative."
+        self.prob = np.clip(probability, 0.0, 1.0)
+
+    def apply_img(self, img: np.ndarray, alpha: float) -> np.ndarray:
+        return img * alpha
+
+    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+            expects float images
+        """
+        if np.random.choice([0, 1], size=1, p=[1 - self.prob, self.prob]):
+            alpha = np.random.uniform(self.lower, self.upper)
+            if 'img' in data:
+                data['img'] = self.apply_img(data['img'], alpha)
+        return data
+
+
+class RandomGamma(BaseTransform):
+    def __init__(self, lower: float = 0.5, upper: float = 2.0, probability: float = 0.5):
+        super(RandomGamma, self).__init__()
+        self.lower = lower
+        self.upper = upper
+        assert self.upper >= self.lower, "gamma upper must be >= lower."
+        assert self.lower >= 0, "gamma lower must be non-negative."
+        self.prob = np.clip(probability, 0.0, 1.0)
+
+    def apply_img(self, img: np.ndarray, gamma: float) -> np.ndarray:
+        return pow(img, gamma)
+
+    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+            expects float images
+        """
+        if np.random.choice([0, 1], size=1, p=[1 - self.prob, self.prob]):
+            gamma = np.random.uniform(self.lower, self.upper)
+            if 'img' in data:
+                data['img'] = self.apply_img(data['img'], gamma)
+        return data
+
+
+class RandomBrightness(BaseTransform):
+    def __init__(self, delta: int = 26, probability: float = 0.5):
+        super(RandomBrightness, self).__init__()
+        self.delta = np.clip(delta, 0, 255)
+        self.prob = np.clip(probability, 0.0, 1.0)
+
+    def apply_img(self, img: np.ndarray, delta: int) -> np.ndarray:
+        return img + delta
+
+    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+            expects float images
+        """
+        if np.random.choice([0, 1], size=1, p=[1 - self.prob, self.prob]):
+            delta = np.random.uniform(-self.delta, self.delta)
+            if 'img' in data:
+                data['img'] = self.apply_img(data['img'], delta)
+        return data
+
+
+class RandomHue(BaseTransform):
+    def __init__(self, delta: float = 30.0, src_color: str = 'RGB', probability: float = 0.5):
+        super(RandomHue, self).__init__()
+        self.delta = np.clip(delta, 0, 360.0)
+        self.prob = np.clip(probability, 0.0, 1.0)
+        self.to_hsv = ConvertColor(src_color, 'HSV')
+        self.from_hsv = ConvertColor('HSV', src_color)
+
+    def apply_img(self, img: np.ndarray, delta: float) -> np.ndarray:
+        self.to_hsv.apply_img(img)
+        img[..., 0] += delta
+        img[..., 0][img[..., 0] > 360.0] -= 360.0
+        img[..., 0][img[..., 0] < 0.0] += 360.0
+        self.from_hsv.apply_img(img)
+
+        return img
+
+    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if np.random.choice([0, 1], size=1, p=[1 - self.prob, self.prob]):
+            delta = np.random.uniform(-self.delta, self.delta)
+            if 'img' in data:
+                data['img'] = self.apply_img(data['img'], delta)
+        return data
+
+
+class RandomGray(BaseTransform):
+    def __init__(self, probability: float = 0.5):
+        super(RandomGray, self).__init__()
+        self.prob = np.clip(probability, 0.0, 1.0)
+
+    def apply_img(self, img: np.ndarray):
+        for i, _ in enumerate(img):
+            gray = cv.cvtColor(img[i], cv.COLOR_RGB2GRAY)
+            img[i] = np.stack([gray, gray, gray], axis=-1)
+
+    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if np.random.choice([0, 1], size=1, p=[1 - self.prob, self.prob]):
+            if 'img' in data:
+                self.apply_img(data['img'])
         return data
