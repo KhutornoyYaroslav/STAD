@@ -1,11 +1,12 @@
 import os
+import torch
 import cv2 as cv
 import numpy as np
 from glob import glob
 from core.config import CfgNode
 from torch.utils.data import Dataset
 from typing import Tuple, List, Optional
-from core.data.transforms.transforms import BaseTransform
+from core.data.transforms.transforms import TransformInterface
 from core.utils.ops import xyxy2xywh
 
 
@@ -16,7 +17,7 @@ class SIMDataset(Dataset):
                  cfg: CfgNode,
                  data_path: str,
                  anno_path: str,
-                 transforms: Optional[BaseTransform] = None):
+                 transforms: Optional[TransformInterface] = None):
         self.seqs = self._parse_seqs(anno_path,
                                      data_path,
                                      cfg.DATASET.SEQUENCE_LENGTH,
@@ -101,14 +102,26 @@ class SIMDataset(Dataset):
     def visualize(self, tick_ms: int = 0):
         for i in range(0, self.__len__()):
             item = self.__getitem__(i)
-            for img, box, cls in zip(item["img"], item["bbox"], item["cls"]):
-                img = (img.cpu().numpy() * 255).astype(np.uint8).transpose(1, 2, 0)
-                img = cv.cvtColor(img, cv.COLOR_RGB2BGR)
+
+            imgs, bboxs, clss = item['img'], item['bbox'], item['cls']
+            if isinstance(imgs, torch.Tensor):
+                # images to numpy
+                imgs = imgs.cpu().numpy()
+                imgs = 255 * imgs
+                imgs = imgs.astype(np.uint8).transpose(0, 2, 3, 1)
+                for img_idx in range(imgs.shape[0]):
+                    imgs[img_idx] = cv.cvtColor(imgs[img_idx], cv.COLOR_RGB2BGR)
+                # boxes, classes to numpy
+                bboxs = bboxs.cpu().numpy()
+                clss = clss.cpu().numpy()
+            elif isinstance(imgs, np.ndarray):
+                pass
+            else:
+                raise ValueError(f"Invalid img type: {type(imgs)}")
+
+            for img, bbox, cls in zip(imgs, bboxs, clss):
                 w, h = img.shape[-2:-4:-1]
-
-                for b, c in zip(box, cls):
-                    b = b.cpu().numpy()
-
+                for b, c in zip(bbox, cls):
                     # skip empty
                     if b[2] * b[3] == 0:
                         continue
@@ -123,7 +136,7 @@ class SIMDataset(Dataset):
                     # draw labels
                     pt = tl.astype(np.int32) + [2, 15]
                     for idx in np.where(c == 1.0)[0]:
-                        text = f"{idx}"# {c[idx]:.2f}"
+                        text = f"{idx}"
                         cv.putText(img, text, pt, cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
                         pt += [0, 10]
 

@@ -12,20 +12,26 @@ def main():
     # parse arguments
     parser = argparse.ArgumentParser(description='Spatio Temporal Action Detection Dataset Visualization')
     parser.add_argument("-d", "--data-path", dest="data_path", required=False, type=str,
-                        default="/media/yaroslav/SSD/khutornoy/data/UCF101_24/rgb-images")
+                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1/ppolique"
+                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1_split/train"
+                        )
     parser.add_argument("-a", "--anno-path", dest="anno_path", required=False, type=str,
-                        default="/media/yaroslav/SSD/khutornoy/data/UCF101_24/labels_train")
+                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1/ppolique"
+                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1_split/train"
+                        )
     parser.add_argument("-t", "--istrain", dest="istrain", required=False, type=str2bool,
                         default=True)
     parser.add_argument("-n", "--dataloader-name", dest="dataloader_name", required=False, type=str,
-                        default='UCF101_24Dataset')
+                        default='SIMDataset')
     parser.add_argument("-r", "--frame-rate", dest="frame_rate", required=False, type=int,
-                        default=25)
+                        default=20)
     parser.add_argument("-l", "--seq-length", dest="seq_length", required=False, type=int,
-                        default=32)
+                        default=16)
     args = parser.parse_args()
 
     # set config
+    # cfg.INPUT.IMAGE_SIZE = [1920 // 2, 1080 // 2]
+    cfg.INPUT.IMAGE_SIZE = [1280, 768]
     cfg.DATASET.SEQUENCE_DILATE = 1
     cfg.DATASET.SEQUENCE_LENGTH = args.seq_length
     cfg.DATASET.SEQUENCE_STRIDE = args.seq_length

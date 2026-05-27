@@ -10,13 +10,13 @@ from core.modeling.attention import CFAMFusion2
 
 class YOLOv8RNNCFAM(nn.Module):
     def __init__(self,
-                 backbone2d: nn.Module,
+                 backbone: nn.Module,
                  head: nn.Module,
                  temporal_fusion: nn.Module,
                  cfam_fusion: nn.Module):
         super(YOLOv8RNNCFAM, self).__init__()
-        self.backbone2d = backbone2d
-        self.head = head
+        self.backbone = backbone
+        self.head2 = head # TODO: rename later. Just for experiment with pretrained backbone.
         self.temporal_fusion = temporal_fusion
         self.cfam_fusion = cfam_fusion
 
@@ -38,7 +38,7 @@ class YOLOv8RNNCFAM(nn.Module):
 
         # get 2d features
         input = input.view(-1, C, H, W)     # from (b, t, c, h, w) to (b*t, c, h, w)
-        f2d = self.backbone2d(input)
+        f2d = self.backbone(input)
 
         # from (b*t, ci, hi, wi) to (b, t, ci, hi, wi)
         for i in range(len(f2d)):  
@@ -57,18 +57,18 @@ class YOLOv8RNNCFAM(nn.Module):
         f = self.cfam_fusion(f2d, f3d)
 
         # class head
-        y = self.head(f)
+        y = self.head2(f)
 
         return y
 
     def get_num_classes(self) -> int:
-        return self.head.nc
+        return self.head2.nc
     
     def get_strides(self) -> List[float]:
-        return self.head.stride
+        return self.head2.stride
     
     def get_dfl_num_bins(self) -> int:
-        return self.head.dfl_bins
+        return self.head2.dfl_bins
 
 
 def initialize_weights(model: nn.Module):

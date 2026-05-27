@@ -5,7 +5,7 @@ from glob import glob
 from typing import Dict, List, Optional
 from core.config import CfgNode
 from torch.utils.data import Dataset
-from core.data.transforms.transforms import BaseTransform
+from core.data.transforms.transforms import TransformInterface
 
 
 class SingleImageDataset(Dataset):
@@ -13,7 +13,7 @@ class SingleImageDataset(Dataset):
                  cfg: CfgNode,
                  img_path: str,
                  label_path: str,
-                 transforms: Optional[BaseTransform] = None):
+                 transforms: Optional[TransformInterface] = None):
         self.files = self._scan_files(img_path, label_path)
         self.transforms = transforms
         self.max_labels = cfg.INPUT.PAD_LABELS_TO

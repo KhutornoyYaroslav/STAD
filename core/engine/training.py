@@ -70,7 +70,8 @@ def do_train(cfg: CfgNode,
                              loss_dfl_k=cfg.LOSS.DFL_WEIGHT,
                              loss_cls_k=cfg.LOSS.CLS_WEIGHT,
                              device=device,
-                             tal_topk=cfg.LOSS.TAL_TOPK)
+                             tal_topk=cfg.LOSS.TAL_TOPK,
+                             bce_weight=cfg.LOSS.BCE_WEIGHTS)
     
     # solver parameters
     acc_grad = cfg.SOLVER.GRAD_ACCUM_ITERS

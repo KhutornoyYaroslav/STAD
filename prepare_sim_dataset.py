@@ -24,8 +24,9 @@ def get_object_class(class_title: str, tags: dict) -> int:
     logger = logging.getLogger(_LOGGER_NAME)
 
     if class_title == "person":
-        if "Action" in tags:
-            tag = tags["Action"]
+        tags_lowercase = {k.lower(): v for k, v in tags.items()}
+        if "action" in tags_lowercase:
+            tag = tags_lowercase["action"]
             if tag == "walking":
                 return 0
             elif tag == "scootering":
@@ -37,7 +38,7 @@ def get_object_class(class_title: str, tags: dict) -> int:
             elif tag == "carrying_bike":
                 return 4
             else:
-                logger.warning(f"Found invalid Action tag: '{tag}'")
+                logger.warning(f"Found invalid action tag: '{tag}'")
                 return None
         else:
             logger.warning("Action tag not found. Use default - 'walking'.")
@@ -46,6 +47,8 @@ def get_object_class(class_title: str, tags: dict) -> int:
         return 5
     elif class_title == "bicycle":
         return 6
+    # elif class_title == "unicycle":
+    #     return 7
     else:
         logger.warning(f"Found invalid class title: '{class_title}'")
         return None
@@ -98,9 +101,6 @@ def convert_dataset(anno_path: str,
             dst_image_file = os.path.join(dst_dir, filename_template % frame_cnt + ".png")
             dst_label_file = os.path.join(dst_dir, filename_template % frame_cnt + ".txt")
 
-            # save image
-            cv.imwrite(dst_image_file, frame)
-
             # save anno
             anno_empty = True
             for frame_info in anno_frames:
@@ -109,18 +109,26 @@ def convert_dataset(anno_path: str,
                 for figure in frame_info.get("figures", []):
                     obj_key = figure["objectKey"]
                     obj_cls = objects[obj_key]
-                    x1y1, x2y2 = figure["geometry"]["points"]["exterior"]
-                    with open(dst_label_file, 'a') as f:
-                        f.write("%d %d %d %d %d\n" % (obj_cls, *x1y1, *x2y2))
-                    anno_empty = False
 
-            if anno_empty:
-                logger.warning(f"Found frame without annotations. Frame index: {frame_cnt}. Save empty annotation file.")
-                open(dst_label_file, 'a').close()
+                    # print(obj_key, obj_cls)
+                    # assert obj_cls is not None, "Expected obj_cls is not none"
+                    if obj_cls is not None:
+                        x1y1, x2y2 = figure["geometry"]["points"]["exterior"]
+                        with open(dst_label_file, 'a') as f:
+                            f.write("%d %d %d %d %d\n" % (obj_cls, *x1y1, *x2y2))
+                        anno_empty = False
+
+            # save image
+            if not anno_empty:           
+                cv.imwrite(dst_image_file, frame)
+            else:
+                # logger.warning(f"Found frame without annotations. Frame index: {frame_cnt}. Save empty annotation file.")
+                # open(dst_label_file, 'a').close()
+                logger.warning(f"Found frame without annotations. Frame index: {frame_cnt}. Skip file.")
 
             # update frame counter
             frame_cnt += 1
-   
+
 
 def str2bool(s):
     return s.lower() in ('true', '1')
@@ -130,12 +138,12 @@ def main():
     # parse arguments
     parser = argparse.ArgumentParser(description='Supervisely To Internal Format Dataset Convertor')
     parser.add_argument('--anno-path', dest='anno_path', type=str,
-                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/annotated/1086449_324565_994515_PAD/PADD/ann/*.json",
+                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/datasets/2026/ppolique/*/*/ann/*.json",
                         help="Pattern-like path to supervisely annotation files")
     parser.add_argument('--video-path', dest='video_path', type=str,
-                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/annotated/1086449_324565_994515_PAD/PADD/video/*.mp4",
+                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/datasets/2026/ppolique/*/*/video/*.mp4",
                         help="Pattern-like path to video files")
-    parser.add_argument('--dst-root', dest='dst_root', type=str, default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/1088400_322995_PAD",
+    parser.add_argument('--dst-root', dest='dst_root', type=str, default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1/ppolique",
                         help="Path to save result dataset")
     args = parser.parse_args()
 

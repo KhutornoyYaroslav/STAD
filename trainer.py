@@ -11,7 +11,7 @@ from core.data import make_data_loader
 from core.engine.training import do_train
 from core.utils.logger import setup_logger
 from core.utils.checkpoint import CheckPointer
-from core.engine.optimization import make_optimizer
+from core.engine.optimization import make_optimizer, make_scheduler
 
 
 def train_model(cfg: CfgNode, args: Any) -> nn.Module:
@@ -31,14 +31,18 @@ def train_model(cfg: CfgNode, args: Any) -> nn.Module:
 
     # create optimizer
     optimizer = make_optimizer(cfg, model)
-    scheduler = None
+    scheduler = make_scheduler(cfg, optimizer)
 
     # create checkpointer
-    arguments = {"epoch": 0}
+    arguments = {'epoch': 0}
     save_to_disk = dist_util.is_main_process()
     checkpointer = CheckPointer(model, optimizer, scheduler, cfg.OUTPUT_DIR, save_to_disk, logger)
-    extra_checkpoint_data = checkpointer.load(cfg.MODEL.PRETRAINED_WEIGHTS)
+    extra_checkpoint_data = checkpointer.load()
     arguments.update(extra_checkpoint_data)
+
+    # load pretrained weights
+    if arguments['epoch'] == 0 and cfg.MODEL.PRETRAINED_WEIGHTS:
+        checkpointer.load_model(cfg.MODEL.PRETRAINED_WEIGHTS, strict_load=False)
 
     # train model
     model = do_train(cfg,

@@ -1,52 +1,50 @@
 import logging
 from core.config import CfgNode
 from core.data.transforms.transforms import (
+    TransformInterface,
+    Compose,
+    CheckFormat,
+    ConvertColor,
     Clip,
-    Resize,
     ToFloat,
     Normalize,
     ToTensor,
-    CheckFormat,
-    ConvertColor,
-    MakeDivisibleBy,
-    Compose,
+    Resize,
+    PadResize,
     RandomJpeg,
     RandomPerspective,
-    PadResize,
-    RandomCrop,
     RandomMirror,
     RandomContrast,
-    RandomGamma,
     RandomBrightness,
     RandomHue,
     RandomGray
 )
 
 
-def build_transforms(cfg: CfgNode, is_train: bool = True):
+def build_transforms(cfg: CfgNode, is_train: bool = True) -> TransformInterface:
     logger = logging.getLogger('CORE')
 
     transform = [
         CheckFormat(),
-        ConvertColor("BGR", "RGB")
+        ConvertColor("BGR", cfg.INPUT.COLOR)
     ]
 
     if is_train:
         transform += [
             RandomJpeg(0.3, 0.5),
-            RandomMirror(0.5),
-            RandomPerspective(translate=0.1, scale=1.5, rotate=5.0, probabilty=0.75, keep_aspect=False),
-            PadResize(cfg.INPUT.IMAGE_SIZE, make_divisible_by=cfg.INPUT.MAKE_DIVISIBLE_BY),
+            RandomMirror(x_axis_only=True, probability=0.5),
+            RandomPerspective(translate=0.1, scale=2.0, rotate=5.0, probabilty=0.75, keep_aspect=False, downscale_only=True),
+            PadResize(cfg.INPUT.IMAGE_SIZE, cfg.INPUT.PAD_BORDER_VALUE, cfg.INPUT.MAKE_DIVISIBLE_BY),
             ToFloat(),
-            RandomHue(delta=60.0, src_color='RGB',probability=0.25),
-            RandomGamma(lower=0.75, upper=1.25, probability=0.25),
-            RandomBrightness(delta=30, probability=0.5),
+            RandomHue(delta=30.0, src_color=cfg.INPUT.COLOR, probability=0.25),
+            RandomContrast(lower=0.75, upper=1.25, probability=0.25),
+            RandomBrightness(delta=30, probability=0.25),
             RandomGray(0.25),
             Clip()
         ]
     else:
         transform += [
-            PadResize(cfg.INPUT.IMAGE_SIZE, make_divisible_by=cfg.INPUT.MAKE_DIVISIBLE_BY),
+            PadResize(cfg.INPUT.IMAGE_SIZE, cfg.INPUT.PAD_BORDER_VALUE, cfg.INPUT.MAKE_DIVISIBLE_BY),
             ToFloat(),
             Clip()
         ]

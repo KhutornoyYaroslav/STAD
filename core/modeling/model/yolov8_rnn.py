@@ -4,16 +4,16 @@ from typing import List
 from core.config import CfgNode
 from core.modeling.head import build_head
 from core.modeling.backbone2d import build_backbone2d
-from core.modeling.temporal import TemporalFusion
+from core.modeling.temporal import build_tempfusion
 
 
 class YOLOv8RNN(nn.Module):
     def __init__(self,
-                 backbone2d: nn.Module,
+                 backbone: nn.Module,
                  head: nn.Module,
                  temporal_fusion: nn.Module):
         super(YOLOv8RNN, self).__init__()
-        self.backbone2d = backbone2d
+        self.backbone = backbone
         self.head = head
         self.temporal_fusion = temporal_fusion
 
@@ -35,7 +35,7 @@ class YOLOv8RNN(nn.Module):
 
         # get 2d features
         input = input.view(-1, C, H, W)     # from (b, t, c, h, w) to (b*t, c, h, w)
-        f2d = self.backbone2d(input)
+        f2d = self.backbone(input)
 
         # from (b*t, ci, hi, wi) to (b, t, ci, hi, wi)
         for i in range(len(f2d)):  
@@ -84,12 +84,7 @@ def build_yolov8rnn(cfg: CfgNode) -> nn.Module:
         strides.append(x.shape[-2] / f.shape[-2])
 
     # build temporal fusion module
-    temporal_fusion = TemporalFusion(
-        in_channels=channels2d,
-        hidden_channels=channels2d,
-        stateful_training=cfg.MODEL.TEMPORAL_FUSION.STATEFUL_TRAINING,
-        learnable_init_state=cfg.MODEL.TEMPORAL_FUSION.LEARNABLE_INIT_STATE,
-        residual_type=cfg.MODEL.TEMPORAL_FUSION.RESIDUAL_TYPE)
+    temporal_fusion = build_tempfusion(cfg, channels2d, channels2d)
 
     # build head
     head = build_head(cfg, channels=channels2d, strides=strides)

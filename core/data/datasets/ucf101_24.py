@@ -5,7 +5,7 @@ from glob import glob
 from core.config import CfgNode
 from torch.utils.data import Dataset
 from typing import Tuple, List, Optional
-from core.data.transforms.transforms import BaseTransform
+from core.data.transforms.transforms import TransformInterface
 from core.utils.ops import xyxy2xywh
 
 
@@ -16,7 +16,7 @@ class UCF101_24Dataset(Dataset):
                  cfg: CfgNode,
                  data_path: str,
                  anno_path: str,
-                 transforms: Optional[BaseTransform] = None):
+                 transforms: Optional[TransformInterface] = None):
         self.seqs = self._parse_seqs(anno_path,
                                      data_path,
                                      cfg.DATASET.SEQUENCE_LENGTH,

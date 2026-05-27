@@ -31,7 +31,8 @@ def do_validation(cfg: CfgNode,
                              loss_dfl_k=cfg.LOSS.DFL_WEIGHT,
                              loss_cls_k=cfg.LOSS.CLS_WEIGHT,
                              device=device,
-                             tal_topk=cfg.LOSS.TAL_TOPK)
+                             tal_topk=cfg.LOSS.TAL_TOPK,
+                             bce_weight=cfg.LOSS.BCE_WEIGHTS)
     map_metric = MeanAveragePrecision(box_format='cxcywh', iou_type='bbox')
     # MeanAveragePrecision.warn_on_many_detections=False
     # TODO: extended_summary=True to get recall, precision

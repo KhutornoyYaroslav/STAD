@@ -77,7 +77,7 @@ class TemporalFusion(nn.Module):
             x = x.view(B, T, C, H, W)           # from (b*t, c, h, w) to (b, t, c, h, w)
             x = x.view(B, T, C, -1)             # from (b, t, c, h, w) to (b, t, c, h*w)
             x = x.permute(0, 3, 1, 2)           # from (b, t, fc, fh*fw) to (b, fh*fw, t, fc)
-            x = x.view(-1, T, C)                # from (b, h*w, t, c) to (b*h*w, t, c)
+            x = x.reshape(-1, T, C)             # from (b, h*w, t, c) to (b*h*w, t, c)
             x = self.rnn_blocks[id](x)
 
             # out conv
@@ -89,7 +89,7 @@ class TemporalFusion(nn.Module):
                 x = torch.concat([input, x], 2)
                 x = x.view(-1, 2*C, H, W)       # from (b, t, 2*c, h, w) to (b*t, 2*c, h, w)
             else:
-                x = x.view(-1, C, H, W)         # from (b, t, c, h, w) to (b*t, c, h, w)
+                x = x.reshape(-1, C, H, W)         # from (b, t, c, h, w) to (b*t, c, h, w)
 
             x = self.out_convs[id](x)
             x = x.view(B, T, C, H, W)    # from (b*t, c, h, w) to (b, t, c, h, w)

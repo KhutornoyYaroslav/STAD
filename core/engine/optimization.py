@@ -2,9 +2,11 @@ import torch
 import logging
 from torch import nn
 from core.config import CfgNode
+from torch.optim.optimizer import Optimizer
+from torch.optim.lr_scheduler import LRScheduler, ExponentialLR
 
 
-def make_optimizer(cfg: CfgNode, model: torch.nn.Module) -> torch.optim.Optimizer:
+def make_optimizer(cfg: CfgNode, model: torch.nn.Module) -> Optimizer:
     logger = logging.getLogger('CORE')
 
     lr = float(cfg.SOLVER.LR)
@@ -43,3 +45,7 @@ def make_optimizer(cfg: CfgNode, model: torch.nn.Module) -> torch.optim.Optimize
     optimizer.add_param_group({"params": g[2], "weight_decay": 0.0})
 
     return optimizer
+
+
+def make_scheduler(cfg, optimizer: Optimizer) -> LRScheduler:
+    return ExponentialLR(optimizer, gamma=cfg.SOLVER.LR_DECAY)

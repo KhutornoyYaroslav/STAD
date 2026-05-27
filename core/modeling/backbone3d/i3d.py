@@ -310,8 +310,8 @@ class InceptionI3d(nn.Module):
 
         # TODO: check it
         # print('AAAAAAa', x.shape)
-        # x = F.avg_pool3d(x, kernel_size=(x.shape[2], 1, 1), stride=1)
-        x = F.avg_pool3d(x, kernel_size=(2, 1, 1), stride=1) # TODO: for export 2 for seq length = 16
+        x = F.avg_pool3d(x, kernel_size=(x.shape[2], 1, 1), stride=1)
+        # x = F.avg_pool3d(x, kernel_size=(2, 1, 1), stride=1) # TODO: for export 2 for seq length = 16
         return x
 
     # def extract_features(self, x):

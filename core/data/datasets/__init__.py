@@ -1,6 +1,6 @@
 from torch.utils.data import Dataset
 from core.config import CfgNode
-from core.data.transforms.transforms import BaseTransform
+from core.data.transforms.transforms import TransformInterface
 from core.data.datasets.single_image import SingleImageDataset
 from core.data.datasets.imagenet_vid import ImagenetVidDataset
 from core.data.datasets.crowdhuman import CrowdHumanDataset
@@ -12,7 +12,7 @@ from core.data.datasets.sim import SIMDataset
 def build_dataset(cfg: CfgNode,
                   data_path: str,
                   anno_path: str,
-                  transforms: BaseTransform) -> Dataset:
+                  transforms: TransformInterface) -> Dataset:
     dstype = cfg.DATASET.TYPE
     if dstype == "SingleImageDataset":
         return SingleImageDataset(cfg, data_path, anno_path, transforms)

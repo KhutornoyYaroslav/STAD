@@ -18,7 +18,8 @@ def create_loader(dataset: Dataset,
                   shuffle: bool,
                   batch_size: int,
                   num_workers: int = 1,
-                  pin_memory: bool = True) -> DataLoader:
+                  pin_memory: bool = True,
+                  prefetch_factor: int = 2) -> DataLoader:
     if shuffle:
         generator = torch.Generator()
         generator.manual_seed(int(time.time()))
@@ -30,7 +31,8 @@ def create_loader(dataset: Dataset,
     data_loader = DataLoader(dataset,
                              batch_sampler=batch_sampler,
                              num_workers=num_workers,
-                             pin_memory=pin_memory)
+                             pin_memory=pin_memory,
+                             prefetch_factor=prefetch_factor)
 
     return data_loader
 
@@ -65,6 +67,12 @@ def make_data_loader(cfg, is_train: bool = True) -> Optional[DataLoader]:
 
     # create dataloader
     shuffle = is_train
-    data_loader = create_loader(dataset, shuffle, cfg.SOLVER.BATCH_SIZE, cfg.DATA_LOADER.NUM_WORKERS, cfg.DATA_LOADER.PIN_MEMORY)
+    data_loader = create_loader(
+        dataset, 
+        shuffle, 
+        cfg.SOLVER.BATCH_SIZE, 
+        cfg.DATA_LOADER.NUM_WORKERS, 
+        cfg.DATA_LOADER.PIN_MEMORY,
+        cfg.DATA_LOADER.PREFECTH_FACTOR)
 
     return data_loader

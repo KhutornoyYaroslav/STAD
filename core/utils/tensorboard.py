@@ -6,7 +6,7 @@ from typing import List, Tuple, Dict, Optional
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import draw_bounding_boxes
 from core.utils.ops import xywh2xyxy
-from core.data.transforms.transforms import BaseTransform
+from core.data.transforms.transforms import TransformInterface
 
 
 @torch.no_grad()
@@ -86,13 +86,13 @@ def create_tensorboard_sample_collage(image: torch.Tensor, # (C, H, W), [0 - 255
 @torch.no_grad()
 def select_samples(limit: int,
                    accumulator: List[Tuple[float, torch.Tensor]],
-                   image: torch.Tensor, # (B, C, H, W)
-                   targets: torch.Tensor, # (B, max_targets, 4 + num_classes)
-                   preds: torch.Tensor, # (B, num_preds, 4 + num_classes)
-                   metric: torch.Tensor, # (B)
+                   images: torch.Tensor,    # (N, C, H, W)
+                   targets: torch.Tensor,   # (N, max_targets, 4 + num_classes)
+                   preds: torch.Tensor,     # (N, num_preds, 4 + num_classes)
+                   metric: torch.Tensor,    # (N)
                    conf_thresh: float,
                    min_metric_better: bool,
-                   image_transforms: Optional[BaseTransform] = None) -> None:
+                   image_transforms: Optional[TransformInterface] = None) -> None:
     # select only nonzero samples
     num_classes = targets.shape[-1] - 4
     targets_box, _ = targets.split((4, num_classes), -1) # (B, max_targets, 4)
@@ -125,7 +125,7 @@ def select_samples(limit: int,
 
     if need_save:
         # prepare tensorboard collage
-        best_image = torch.index_select(image, 0, batch_idxs)[choosen_idx]
+        best_image = torch.index_select(images, 0, batch_idxs)[choosen_idx]
         best_preds = torch.index_select(preds, 0, batch_idxs)[choosen_idx]
         best_targets = torch.index_select(targets, 0, batch_idxs)[choosen_idx]
 
