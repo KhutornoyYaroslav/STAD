@@ -6,7 +6,7 @@ from glob import glob
 from typing import List, Optional, Tuple, Any
 from core.config import CfgNode
 from torch.utils.data import Dataset
-from core.data.transforms.transforms import BaseTransform
+from core.data.transforms.transforms import TransformInterface
 from core.utils.ops import xyxy2xywh
 
 
@@ -15,7 +15,7 @@ class ImagenetVidVrdDataset(Dataset):
                  cfg: CfgNode,
                  data_root: str,
                  anno_root: str,
-                 transforms: Optional[BaseTransform] = None):
+                 transforms: Optional[TransformInterface] = None):
         self.data_root = data_root
         self.anno_seqs = self._prepare_anno_seqs(anno_root,
                                                  cfg.DATASET.SEQUENCE_LENGTH,

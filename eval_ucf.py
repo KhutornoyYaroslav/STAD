@@ -5,7 +5,7 @@ import numpy as np
 from core.config import CfgNode, cfg
 from core.data import make_data_loader
 from core.utils.checkpoint import CheckPointer
-from core.modeling.model.stad import build_stad
+from core.modeling.model.yolov8_3dcnn import build_stad
 from core.utils.ops import non_max_suppression, xywh2xyxy
 # from core.utils.metrics import bbox_iou 
 

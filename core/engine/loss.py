@@ -62,12 +62,20 @@ class DetectionLoss:
                  loss_cls_k: float,
                  device: torch.device,
                  tal_topk: int = 10,
+                 bce_weight: List[float] = []
                  ):
         self.loss_box_k = loss_box_k
         self.loss_dfl_k = loss_dfl_k
         self.loss_cls_k = loss_cls_k
 
-        self.bce = nn.BCEWithLogitsLoss(reduction="none")
+        if not len(bce_weight):
+            bce_weight = None
+        elif len(bce_weight) == num_classes:
+            bce_weight = torch.Tensor(bce_weight).to(device)
+        else:
+            raise ValueError("Lenght of 'bce_weight' must be equal to 'num_classes'")
+        self.bce = nn.BCEWithLogitsLoss(weight=bce_weight, reduction="none")
+
         self.stride = strides
         self.nc = num_classes
         self.no = num_classes + dfl_bins * 4

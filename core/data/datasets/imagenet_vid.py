@@ -5,7 +5,7 @@ from glob import glob
 from typing import Dict, List, Optional
 from core.config import CfgNode
 from torch.utils.data import Dataset
-from core.data.transforms.transforms import BaseTransform
+from core.data.transforms.transforms import TransformInterface
 import xml.etree.ElementTree as ET
 
 
@@ -14,7 +14,7 @@ class ImagenetVidDataset(Dataset):
                  cfg: CfgNode,
                  data_root: str,
                  anno_root: str,
-                 transforms: Optional[BaseTransform] = None):
+                 transforms: Optional[TransformInterface] = None):
         self.data_root = data_root
         self.anno_seqs = self._prepare_anno_seqs(anno_root,
                                                  cfg.DATASET.SEQUENCE_LENGTH,
