@@ -1,5 +1,3 @@
-import math
-import cv2 as cv
 import numpy as np
 from typing import Tuple
 from numpy.typing import ArrayLike
