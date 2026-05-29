@@ -4,11 +4,10 @@ import cv2 as cv
 import numpy as np
 from glob import glob
 from core.config import CfgNode
+from core.utils.ops import xyxy2xywh
 from torch.utils.data import Dataset
 from typing import Tuple, List, Optional
-from core.data.transforms.transforms import TransformInterface
-from core.utils.ops import xyxy2xywh
-
+from core.data.transforms import TransformInterface, build_inv_transforms
 
 class SIMDataset(Dataset):
     num_classes = 7
@@ -17,13 +16,15 @@ class SIMDataset(Dataset):
                  cfg: CfgNode,
                  data_path: str,
                  anno_path: str,
-                 transforms: Optional[TransformInterface] = None):
+                 transforms: Optional[TransformInterface] = None,
+                 inv_transforms: Optional[TransformInterface] = None):
         self.seqs = self._parse_seqs(anno_path,
                                      data_path,
                                      cfg.DATASET.SEQUENCE_LENGTH,
                                      cfg.DATASET.SEQUENCE_STRIDE,
                                      cfg.DATASET.SEQUENCE_DILATE)
         self.transforms = transforms
+        self.inv_transforms = inv_transforms
         self.max_labels = cfg.INPUT.PAD_LABELS_TO
 
     def __len__(self):
@@ -103,21 +104,24 @@ class SIMDataset(Dataset):
         for i in range(0, self.__len__()):
             item = self.__getitem__(i)
 
+            if self.inv_transforms:
+                item = self.inv_transforms(item)
+
             imgs, bboxs, clss = item['img'], item['bbox'], item['cls']
-            if isinstance(imgs, torch.Tensor):
-                # images to numpy
-                imgs = imgs.cpu().numpy()
-                imgs = 255 * imgs
-                imgs = imgs.astype(np.uint8).transpose(0, 2, 3, 1)
-                for img_idx in range(imgs.shape[0]):
-                    imgs[img_idx] = cv.cvtColor(imgs[img_idx], cv.COLOR_RGB2BGR)
-                # boxes, classes to numpy
-                bboxs = bboxs.cpu().numpy()
-                clss = clss.cpu().numpy()
-            elif isinstance(imgs, np.ndarray):
-                pass
-            else:
-                raise ValueError(f"Invalid img type: {type(imgs)}")
+            # if isinstance(imgs, torch.Tensor):
+            #     # images to numpy
+            #     imgs = imgs.cpu().numpy()
+            #     imgs = 255 * imgs
+            #     imgs = imgs.astype(np.uint8).transpose(0, 2, 3, 1)
+            #     for img_idx in range(imgs.shape[0]):
+            #         imgs[img_idx] = cv.cvtColor(imgs[img_idx], cv.COLOR_RGB2BGR)
+            #     # boxes, classes to numpy
+            #     bboxs = bboxs.cpu().numpy()
+            #     clss = clss.cpu().numpy()
+            # elif isinstance(imgs, np.ndarray):
+            #     pass
+            # else:
+            #     raise ValueError(f"Invalid img type: {type(imgs)}")
 
             for img, bbox, cls in zip(imgs, bboxs, clss):
                 w, h = img.shape[-2:-4:-1]

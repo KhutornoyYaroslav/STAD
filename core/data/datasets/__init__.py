@@ -12,7 +12,8 @@ from core.data.datasets.sim import SIMDataset
 def build_dataset(cfg: CfgNode,
                   data_path: str,
                   anno_path: str,
-                  transforms: TransformInterface) -> Dataset:
+                  transforms: TransformInterface,
+                  inv_transforms: TransformInterface) -> Dataset:
     dstype = cfg.DATASET.TYPE
     if dstype == "SingleImageDataset":
         return SingleImageDataset(cfg, data_path, anno_path, transforms)
@@ -25,6 +26,6 @@ def build_dataset(cfg: CfgNode,
     elif dstype == "UCF101_24Dataset":
         return UCF101_24Dataset(cfg, data_path, anno_path, transforms)
     elif dstype == "SIMDataset":
-        return SIMDataset(cfg, data_path, anno_path, transforms)
+        return SIMDataset(cfg, data_path, anno_path, transforms, inv_transforms)
     else:
         raise ValueError(f"Can't find dataset type '{dstype}'")

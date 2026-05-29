@@ -3,7 +3,7 @@ import torch
 import logging
 from typing import Optional
 from .datasets import build_dataset
-from core.data.transforms import build_transforms
+from core.data.transforms import build_transforms, build_inv_transforms
 from torch.utils.data import (
     Dataset,
     DataLoader,
@@ -51,11 +51,12 @@ def make_data_loader(cfg, is_train: bool = True) -> Optional[DataLoader]:
 
     # build transforms
     transforms = build_transforms(cfg, is_train)
+    inv_transforms = build_inv_transforms(cfg)
 
     # create dataset
     datasets = []
     for data_path, anno_path in zip(data_paths, anno_paths):
-        dataset = build_dataset(cfg, data_path, anno_path, transforms)
+        dataset = build_dataset(cfg, data_path, anno_path, transforms, inv_transforms)
         logger.info(f"Loaded {ds_type_str} dataset from '{data_path}'. Size: {len(dataset)}")
         datasets.append(dataset)
 

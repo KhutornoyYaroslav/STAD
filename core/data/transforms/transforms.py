@@ -4,10 +4,7 @@ import cv2 as cv
 import numpy as np
 from core.utils.ops import xywh2xyxy, xyxy2xywh
 from typing import Dict, Tuple, Sequence, Union, List
-from core.data.transforms.functional import (
-    make_array_divisible_by, 
-    make_size_divisible_by
-)
+from core.data.transforms.functional import make_size_divisible_by
 from abc import ABC, abstractmethod
 
 
@@ -15,21 +12,22 @@ class TransformInterface(ABC):
     @abstractmethod
     def __call__(
             self, 
-            data: Dict[str, np.ndarray]) -> Dict[str, Union[np.ndarray, torch.Tensor]]:
+            data: Dict[str, Union[np.ndarray, torch.Tensor]]
+            ) -> Dict[str, Union[np.ndarray, torch.Tensor]]:
         """
         Applies transformation to data.
 
         Args:
             'data' (Dict): A dictionary containing image data and annotations, including:
-                'img' (numpy.ndarray): Array of images with shape (T, H, W, C),
+                'img' (ArrayLike): Array of images with shape (T, H, W, C),
                     where T is sequence length, H is image height, W is image width,
                     C is number of image channels.
-                'bbox' (numpy.ndarray): Array of bounding boxes with shape (T, N, 4),
+                'bbox' (ArrayLike): Array of bounding boxes with shape (T, N, 4),
                     where T is sequence length, N is number of bounding boxes per image.
                     Assumes box coordinates are normalized in range [0, 1) and have format
                     'cxcywh'. If some bounding box is out of image borders after transformation,
                     fills this box with zeros.
-                'cls' (numpy.ndarray): Array of class scores with shape (T, N, num_classes),
+                'cls' (ArrayLike): Array of class scores with shape (T, N, num_classes),
                     where T is sequence length, N is number of bounding boxes per image.
                     Assumes class scores are normalized in range [0, 1].
 
@@ -110,12 +108,10 @@ class Resize(TransformInterface):
 
     def __call__(self, data):
         if 'img' in data:
-            r_imgs = []
-            for i in range(len(data['img'])):
-                r_img = cv.resize(data['img'][i], self.size, interpolation=cv.INTER_AREA)
-                r_imgs.append(r_img)
-            data['img'] = np.stack(r_imgs, 0)
-
+            t, h, w, c = data['img'].shape
+            res = np.zeros((t, *self.size[::-1], c), data['img'].dtype)
+            for i in range(t):
+                res[i] = cv.resize(data['img'][i], self.size, interpolation=cv.INTER_AREA)
         return data
 
 
@@ -157,7 +153,7 @@ class PadResize(TransformInterface):
 
         # resize
         res = np.zeros(shape=(t, *self.size[::-1], c), dtype=img.dtype)
-        for i, _ in enumerate(res):
+        for i in range(t):
             res[i] = cv.resize(img[i], self.size, interpolation=cv.INTER_AREA)
 
         return res
@@ -229,46 +225,32 @@ class PadResize(TransformInterface):
 #         return data
 
 
-# class MakeDivisibleBy(BaseTransform):
-#     def __init__(self, factor: int):
-#         super().__init__()
-#         self.factor = factor
-
-#     def apply_img(self, img):
-#         return make_array_divisible_by(img, self.factor)
-
-#     def apply_bbox(self, bbox: np.ndarray, w_scale: float, h_scale: float):
-#         bbox[..., ::2] = bbox[..., ::2] * w_scale
-#         bbox[..., 1::2] = bbox[..., 1::2] * h_scale
-
-#     def __call__(self, data):
-#         if 'img' in data:
-#             h, w = data['img'].shape[1:3]
-#             data['img'] = self.apply_img(data['img'])
-#             h_new, w_new = data['img'].shape[1:3]
-#             if 'bbox' in data:
-#                 self.apply_bbox(data['bbox'], w / w_new, h / h_new)
-#         return data
-
-
-class ToFloat(TransformInterface):
-    def __init__(self):
-        super(ToFloat, self).__init__()
-
-    def apply_img(self, img):
-        return img.astype(np.float32)
+class ToType(TransformInterface):
+    def __init__(
+            self,
+            img_dtype: type,
+            bbox_dtype: type = np.float32,
+            cls_dtype: type = np.float32):
+        super(ToType, self).__init__()
+        self.img_dtype = img_dtype
+        self.bbox_dtype = bbox_dtype
+        self.cls_dtype = cls_dtype
 
     def __call__(self, data):
         if 'img' in data:
-            data['img'] = data['img'].astype(np.float32)
+            data['img'] = data['img'].astype(self.img_dtype)
+        if 'bbox' in data:
+            data['bbox'] = data['bbox'].astype(self.bbox_dtype)
+        if 'cls' in data:
+            data['cls'] = data['cls'].astype(self.cls_dtype)
         return data
 
 
 class Normalize(TransformInterface):
     def __init__(self, mean_rgb: Sequence[float], scale_rgb: Sequence[float]):
         super(Normalize, self).__init__()
-        self.mean_rgb = mean_rgb
-        self.scale_rgb = scale_rgb
+        self.mean_rgb = np.array(mean_rgb, dtype=np.float32)
+        self.scale_rgb = np.array(scale_rgb, dtype=np.float32)
 
     def __call__(self, data):
         if 'img' in data:
@@ -279,8 +261,8 @@ class Normalize(TransformInterface):
 class Denormalize(TransformInterface):
     def __init__(self, mean_rgb: Sequence[float], scale_rgb: Sequence[float]):
         super(Denormalize, self).__init__()
-        self.mean_rgb = mean_rgb
-        self.scale_rgb = scale_rgb
+        self.mean_rgb = np.array(mean_rgb, dtype=np.float32)
+        self.scale_rgb = np.array(scale_rgb, dtype=np.float32)
 
     def __call__(self, data):
         if 'img' in data:
@@ -307,7 +289,7 @@ class ToTensor(TransformInterface):
 
     def __call__(self, data):
         if 'img' in data:
-            data['img'] = torch.from_numpy(data['img']).type(torch.float32)
+            data['img'] = torch.from_numpy(data['img'])
             if data['img'].ndim == 4:
                 data['img'] = data['img'].permute(0, 3, 1, 2)
             elif data['img'].ndim == 3:
@@ -315,26 +297,17 @@ class ToTensor(TransformInterface):
             else:
                 raise ValueError("Expected 3D or 4D array")
         if 'bbox' in data:
-            data['bbox'] = torch.from_numpy(data['bbox']).type(torch.float32)
+            data['bbox'] = torch.from_numpy(data['bbox'])
         if 'cls' in data:
-            data['cls'] = torch.from_numpy(data['cls']).type(torch.float32)
+            data['cls'] = torch.from_numpy(data['cls'])
+
         return data
 
 
-class ToNumpy(TransformInterface):
+class FromTensor(TransformInterface):
     def __init__(self):
-        super(ToNumpy, self).__init__()
+        super(FromTensor, self).__init__()
 
-    def apply_img(self, img: torch.Tensor) -> np.ndarray:
-        if img.dim() == 4:
-            res = img.permute(0, 2, 3, 1)
-        elif img.dim() == 3:
-            res = img.permute(1, 2, 0)
-        else:
-            raise ValueError("Expected 3D or 4D array")
-        return res.cpu().numpy()
-
-    # TODO: tensors as inputs, not numpy
     def __call__(self, data):
         if 'img' in data:
             if data['img'].dim() == 4:

@@ -14,12 +14,6 @@ from core.engine.loss import DetectionLoss
 from core.utils.tensorboard import add_metrics
 from core.engine.validation import do_validation
 from torch.utils.tensorboard import SummaryWriter
-from core.data.transforms.transforms import (
-    Denormalize,
-    ToNumpy,
-    ToTensor,
-    Compose
-)
 
 
 def do_train(cfg: CfgNode,
@@ -46,14 +40,6 @@ def do_train(cfg: CfgNode,
         summary_writer = SummaryWriter(log_dir=os.path.join(cfg.OUTPUT_DIR, 'tf_logs'))
     else:
         summary_writer = None
-
-    # tensorboard image transforms
-    tb_img_transforms = [
-        ToNumpy(),
-        Denormalize(cfg.INPUT.PIXEL_MEAN, cfg.INPUT.PIXEL_SCALE),
-        ToTensor()
-    ]
-    tb_img_transforms = Compose(tb_img_transforms)
 
     # prepare to train
     iters_per_epoch = len(data_loader_train)

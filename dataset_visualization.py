@@ -1,7 +1,7 @@
 import argparse
 from core.config import cfg
 from core.data.datasets import build_dataset
-from core.data.transforms import build_transforms
+from core.data.transforms import build_transforms, build_inv_transforms
 
 
 def str2bool(s):
@@ -20,17 +20,16 @@ def main():
                         default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1_split/train"
                         )
     parser.add_argument("-t", "--istrain", dest="istrain", required=False, type=str2bool,
-                        default=True)
+                        default=False)
     parser.add_argument("-n", "--dataloader-name", dest="dataloader_name", required=False, type=str,
                         default='SIMDataset')
     parser.add_argument("-r", "--frame-rate", dest="frame_rate", required=False, type=int,
-                        default=20)
+                        default=0)
     parser.add_argument("-l", "--seq-length", dest="seq_length", required=False, type=int,
-                        default=16)
+                        default=1)
     args = parser.parse_args()
 
     # set config
-    # cfg.INPUT.IMAGE_SIZE = [1920 // 2, 1080 // 2]
     cfg.INPUT.IMAGE_SIZE = [1280, 768]
     cfg.DATASET.SEQUENCE_DILATE = 1
     cfg.DATASET.SEQUENCE_LENGTH = args.seq_length
@@ -40,7 +39,8 @@ def main():
 
     # check dataset
     transforms = build_transforms(cfg, is_train=args.istrain)
-    dataset = build_dataset(cfg, args.data_path, args.anno_path, transforms)
+    inv_transforms = build_inv_transforms(cfg)
+    dataset = build_dataset(cfg, args.data_path, args.anno_path, transforms, inv_transforms)
     print(f"Dataset size: {len(dataset)} sequences")
     dataset.visualize(args.frame_rate)
 

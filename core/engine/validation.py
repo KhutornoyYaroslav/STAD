@@ -10,7 +10,7 @@ from torchmetrics.detection import MeanAveragePrecision
 from core.utils.ops import non_max_suppression, xyxy2xywh
 from core.data.transforms.transforms import (
     Denormalize,
-    ToNumpy,
+    FromTensor,
     ToTensor,
     Compose
 )
@@ -39,7 +39,7 @@ def do_validation(cfg: CfgNode,
 
     # tensorboard image transforms
     tb_img_transforms = [
-        ToNumpy(),
+        FromTensor(),
         Denormalize(cfg.INPUT.PIXEL_MEAN, cfg.INPUT.PIXEL_SCALE),
         ToTensor()
     ]
