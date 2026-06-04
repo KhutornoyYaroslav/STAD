@@ -48,7 +48,23 @@ class CheckPointer:
 
         self.tag_last_checkpoint(save_file)
 
-    def load(self, f=None, use_latest=True):
+    def load_model(self, path: str, strict_load=True):
+        checkpoint = self._load_file(path)
+
+        model = self.model
+        if model:
+            self.logger.info("Loading model state dict from {}".format(path))
+            try:
+                if "model" in checkpoint:
+                    model.load_state_dict(checkpoint.pop("model"), strict=strict_load)
+                elif "state_dict" in checkpoint:
+                    model.load_state_dict(checkpoint.pop("state_dict"), strict=strict_load)
+                else:
+                    model.load_state_dict(checkpoint, strict=strict_load)
+            except ValueError:
+                self.logger.info("Model state dict load failed")
+
+    def load(self, f=None, use_latest=True, strict_load=True):
         if self.has_checkpoint() and use_latest:
             f = self.get_checkpoint_file()
         if not f:
@@ -63,11 +79,11 @@ class CheckPointer:
             self.logger.info("Loading model state dict from {}".format(f))
             try:
                 if "model" in checkpoint:
-                    model.load_state_dict(checkpoint.pop("model"), strict=True)
+                    model.load_state_dict(checkpoint.pop("model"), strict=strict_load)
                 elif "state_dict" in checkpoint:
-                    model.load_state_dict(checkpoint.pop("state_dict"), strict=True)
+                    model.load_state_dict(checkpoint.pop("state_dict"), strict=strict_load)
                 else:
-                    model.load_state_dict(checkpoint, strict=True)
+                    model.load_state_dict(checkpoint, strict=strict_load)
             except ValueError:
                 self.logger.info("Model state dict load failed")
 

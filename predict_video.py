@@ -1,40 +1,49 @@
+import os
 import torch
 import argparse
 import cv2 as cv
 import numpy as np
 from glob import glob
 from core.config import cfg
+from core.modeling import build_model
+from core.utils.logger import setup_logger
 from core.utils.checkpoint import CheckPointer
 from core.utils.ops import non_max_suppression
-from core.modeling.model.stad import build_stad
-from core.data.transforms import build_transforms
+from core.data.transforms import build_transforms, PadResize
 
 
 def main() -> int:
     # parse arguments
     parser = argparse.ArgumentParser(description='Spatio Temporal Action Detection With PyTorch')
-    parser.add_argument('-c', '--cfg', dest='config_file', required=False, type=str, metavar="FILE",
+    parser.add_argument('-c', '--cfg', dest='config_file', required=False, type=str,
                         default="configs/cfg.yaml",
-                        help="path to config file")
-    parser.add_argument('-i', '--input', dest='input', required=False, type=str, metavar="FILE",
-                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/olvia/04-09-2024/SKAT_12-54-02.mp4",
-                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/olvia/04-09-2024/SKAT_09-40-17.mp4",
-                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/olvia/04-09-2024/SKAT_09-40-17.mp4",
-                        # default="/media/yaroslav/SSD/khutornoy/data/VIDEOS/videos/ufa1/ufa1.mkv",
-                        # default="/media/yaroslav/SSD/khutornoy/data/VIDEOS/mp4/uid_vid_00035.mp4",
-                        # default="/media/yaroslav/SSD/khutornoy/data/ImageNet/data/ImageNet2017/object_detection_from_video/ILSVRC2017_VID_new/ILSVRC/Data/VID/snippets/test/ILSVRC2017_test_00000000.mp4",
-                        # default="/media/yaroslav/Terra/datasets/UCF101/ucf_test_videos/Basketball/v_Basketball_g07_c01.mp4",
-                        # default="/media/yaroslav/Terra/datasets/UCF101/ucf_test_videos/BasketballDunk/v_BasketballDunk_g01_c01.mp4",
-                        # default="/media/yaroslav/Terra/datasets/UCF101/ucf_test_videos/IceDancing/v_IceDancing_g05_c01.mp4",
-                        # default="/media/yaroslav/Terra/datasets/UCF101/ucf_test_videos/WalkingWithDog/*.mp4",
-                        # default="/media/yaroslav/Terra/datasets/UCF101/ucf_test_videos/Biking/*.mp4",
-                        # default="/media/yaroslav/Terra/datasets/UCF101/ucf_test_videos/LongJump/*.mp4",
-                        # default="/media/yaroslav/Terra/datasets/UCF101/ucf_test_videos/Surfing/*.mp4",
-                        # default="/media/yaroslav/Terra/datasets/UCF101/ucf_test_videos/FloorGymnastics/*.mp4",
-                        # default="/media/yaroslav/Terra/datasets/UCF101/ucf_test_videos/TennisSwing/*.mp4",
-                        default="/media/yaroslav/Terra/datasets/UCF101/ucf_test_videos/Basketball/*.mp4",
-                        help="path to input image")
+                        help="Path to configuration file")
+    parser.add_argument('-i', '--input', dest='input', required=False, type=str,
+                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/videos/olvia/dybenko_street/chemusov/done/SKAT_12-25-32.mp4",
+                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/datasets/2026/ulia_pav/PAD/PADD/video/2024_09_09__10_48_38_250_cut_1.mp4",
+                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/datasets/2026/anndre_eva/PAD/PADD/video/2024_09_09__15_26_02_878_cut.mp4",
+                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/datasets/2026/anndre_eva/PAD/PADD/video/2024_09_11__15_05_30_511_cut.mp4",
+                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/datasets/2026/butterfly_catastrophe/PAD/PADD/video/2024_09_10__12_31_29_327_cut_5.mp4",
+                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/videos/vika/team_1/IMG_1561.MOV",
+                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/videos/youtube/Lakhta Center-HMW4sYtEtU8-4.mp4",
+                        # default="/media/yaroslav/SSD/khutornoy/data/VIDEOS/videos/kolo2/kolo2.mkv",
+                        # default="/media/yaroslav/SSD/khutornoy/data/VIDEOS/videos/kbr1.mkv",
+                        help="Path to input video(s)")
+    parser.add_argument('-o', '--output-dir', dest='output_dir', required=False, type=str,
+                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/results",
+                        help="Directory to write output videos with predictions")
+    parser.add_argument('-conf', '--conf', dest='conf', required=False, type=float,
+                        default=0.7,
+                        help="Confidence threshold")
+    parser.add_argument('--win-size', dest='win_size', required=False, type=int,
+                        default=1200,
+                        help="Size of debug window (width)")
+    parser.add_argument("--frame-rate", dest="frame_rate", required=False, type=int,
+                        default=1)
     args = parser.parse_args()
+
+    # create logger
+    logger = setup_logger("CORE", 0)
 
     # create config
     cfg.merge_from_file(args.config_file)
@@ -44,99 +53,104 @@ def main() -> int:
     device = torch.device(cfg.MODEL.DEVICE)
 
     # create model
-    model = build_stad(cfg)
+    model = build_model(cfg)
     model = model.to(device)
-    model.eval()
+    model = model.eval()
+    model = model.half()
+    # model.prepare_inference(*cfg.INPUT.IMAGE_SIZE)
 
     # load weights
-    checkpointer = CheckPointer(model, None, None, cfg.OUTPUT_DIR)
-    checkpointer.load(cfg.MODEL.PRETRAINED_WEIGHTS)
+    checkpointer = CheckPointer(model, save_dir=cfg.OUTPUT_DIR, logger=logger)
+    checkpointer.load()
 
     # transforms
     transforms = build_transforms(cfg, False)
+    inv_resize_transforms = PadResize(cfg.INPUT.IMAGE_SIZE, make_divisible_by=cfg.INPUT.MAKE_DIVISIBLE_BY)
 
-    # processs input
-    inputs = sorted(glob(args.input))
-    for input in inputs:
-        print(f"Processing {input} ...")
+    # process inputs
+    for video in sorted(glob(args.input)):
+        logger.info(f"Processing video: '{video}'")
 
-        cap = cv.VideoCapture(input)
-        if not cap.isOpened():
-            print("Error opening video stream or file")
+        # create video reader
+        reader = cv.VideoCapture(video)
+        if not reader.isOpened():
+            logger.error("Failed to open video stream")
             return -1
 
-        frame_cnt = 0
-        image_buffer = []
-        while cap.isOpened():
-            ret, image = cap.read()
+        # create video writer
+        video_name = os.path.basename(video)
+        output_video_path = os.path.join(args.output_dir, video_name)
+        logger.info(f"Writing result to: '{output_video_path}'")
 
-            if not ret:
+        frame_width  = int(reader.get(cv.CAP_PROP_FRAME_WIDTH))
+        frame_height = int(reader.get(cv.CAP_PROP_FRAME_HEIGHT))
+        video_fps = reader.get(cv.CAP_PROP_FPS)
+        writer = cv.VideoWriter(
+            output_video_path, 
+            cv.VideoWriter_fourcc(*'mp4v'), 
+            video_fps,
+            (frame_width, frame_height))
+
+        # process frames
+        while reader.isOpened():
+            ret, frame = reader.read()
+            if not ret: break
+            if frame is None:
+                logger.error("Failed to read frame")
                 break
-            if image is None:
-                print("Failed to read frame")
-                break
-            frame_cnt += 1
 
-            if len(image_buffer) >= cfg.DATASET.SEQUENCE_LENGTH:
-                image_buffer.pop(0)
-            image_buffer.append(image)
-            if len(image_buffer) < cfg.DATASET.SEQUENCE_LENGTH:
-                continue
-
-            detects = []
+            # infer model
             with torch.no_grad():
                 data = {
-                    'img': np.stack(image_buffer, 0)# .copy() # (T, H, W, C)
+                    'img': np.expand_dims(frame.copy(), 0) # (1, H, W, C)
                 }
-                np_keyframe = data['img'][-1, :, :, :].copy()
 
-                data = transforms(data) # (T, C, H, W)
+                data = transforms(data)
+                input = data['img'].unsqueeze(0) # (B, 1, C, H, W)
+                input = input.half()
+                out_y, _ = model(input.to(device))
 
-                inputs = data['img'].unsqueeze(0) # (B, T, C, H, W)
-                clip = inputs.permute(0, 2, 1, 3, 4) # (B, C, T, H, W)
-                keyframe = clip[:, :, -1] # (B, C, H, W)
-                INPUT_IMG_SIZE = clip.shape[-1:-3:-1]
+                outputs_person = non_max_suppression(out_y, conf_thres=args.conf, iou_thres=0.45, classes=[0, 1, 2, 3, 4], agnostic=True, in_place=False)[0]
+                outputs_vehicle = non_max_suppression(out_y, conf_thres=args.conf, iou_thres=0.45, classes=[5, 6], in_place=False)[0]
+                outputs = torch.cat([outputs_person, outputs_vehicle], dim=0)
+                detects = outputs.to('cpu').numpy() # (N, 6)
 
-                out_y, _ = model(clip.to(device), keyframe.to(device))
-
-                # out_y = out_y.permute(0, 2, 1)
-                # outputs = Detect.postprocess(out_y, max_det=300, nc=cfg.MODEL.HEAD.NUM_CLASSES)
-                # outputs = outputs.squeeze(0)
-
-                # TODP: multi_label=True ?
-                # outputs = non_max_suppression(out_y, conf_thres=0.0005, iou_thres=0.45, nc=cfg.MODEL.HEAD.NUM_CLASSES)[0]
-                outputs = non_max_suppression(out_y, conf_thres=0.005, iou_thres=0.45)[0]
-                detects = outputs.to('cpu').numpy()
+            # visualize
+            mask = np.zeros_like(frame)
+            img_h, img_w = frame.shape[:2]
+            detects[:, :4] = inv_resize_transforms._inv_apply_bbox(detects[:, :4], img_w, img_h)
 
             for det in detects:
-                x, y, w, h, conf, class_idx = det
+                x1, y1, x2, y2, conf, class_idx = det
+                x1 = int(x1)
+                y1 = int(y1)
+                x2 = int(x2)
+                y2 = int(y2)
 
-                img_h, img_w  = np_keyframe.shape[:2]
-                x = (x / INPUT_IMG_SIZE[0]) * img_w
-                y = (y / INPUT_IMG_SIZE[1]) * img_h
-                w = (w / INPUT_IMG_SIZE[0]) * img_w
-                h = (h / INPUT_IMG_SIZE[1]) * img_h
-                x = int(x)
-                y = int(y)
-                w = int(w)
-                h = int(h)
+                color = (255, 255, 255)
+                text_label = cfg.DATASET.LABELS[int(class_idx)]
 
-                if conf > 0.2:
-                    color = (0, 255, 0)
-                    cv.rectangle(np_keyframe, (x, y), (w, h), color, 2) # NMS
-                    # cv.rectangle(image, (x - w//2, y-h//2), (x + w//2, y + h//2), (0, 255, 0), 1) # Detect.postprocess
-                    text = f"{int(class_idx)} {conf:.2f}"
-                    cv.putText(np_keyframe, text, (x, y + 20), cv.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                cv.rectangle(mask, (x1, y1), (x2, y2), color, -1) # NMS
+                cv.rectangle(frame, (x1, y1), (x2, y2), color, 2) # NMS
+                text = f"{text_label} {conf:.2f}"
+                cv.putText(frame, text, (x1, y1 - 10), cv.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
 
-            resize_k = 800.0 / np_keyframe.shape[1]
-            cv.imshow('Result', cv.resize(np_keyframe, dsize=None, fx=resize_k, fy=resize_k, interpolation=cv.INTER_AREA))
-            key = cv.waitKey(10) & 0xFF
+            frame = cv.addWeighted(frame, 0.8, mask, 0.2, 0)
+            writer.write(frame)
+
+            resize_k = args.win_size / frame.shape[1]
+            cv.imshow('Result', cv.resize(frame, dsize=None, fx=resize_k, fy=resize_k, interpolation=cv.INTER_AREA))
+            key = cv.waitKey(args.frame_rate) & 0xFF
             if key == ord(' '):
-                break
+                continue
             if key == ord('q'):
+                writer.release()
                 return
 
-    print("Done.")
+        reader.release()
+        writer.release()
+
+    logger.info("Done")
     return 0
 
 

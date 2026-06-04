@@ -26,9 +26,9 @@ class MaxPool3dSamePadding(nn.MaxPool3d):
         # compute 'same' padding
         (batch, channel, t, h, w) = x.size()
         #print t,h,w
-        out_t = np.ceil(float(t) / float(self.stride[0]))
-        out_h = np.ceil(float(h) / float(self.stride[1]))
-        out_w = np.ceil(float(w) / float(self.stride[2]))
+        # out_t = np.ceil(float(t) / float(self.stride[0]))
+        # out_h = np.ceil(float(h) / float(self.stride[1]))
+        # out_w = np.ceil(float(w) / float(self.stride[2]))
         #print out_t, out_h, out_w
         pad_t = self.compute_pad(0, t)
         pad_h = self.compute_pad(1, h)
@@ -94,9 +94,9 @@ class Unit3D(nn.Module):
         # compute 'same' padding
         (batch, channel, t, h, w) = x.size()
         #print t,h,w
-        out_t = np.ceil(float(t) / float(self._stride[0]))
-        out_h = np.ceil(float(h) / float(self._stride[1]))
-        out_w = np.ceil(float(w) / float(self._stride[2]))
+        # out_t = np.ceil(float(t) / float(self._stride[0]))
+        # out_h = np.ceil(float(h) / float(self._stride[1]))
+        # out_w = np.ceil(float(w) / float(self._stride[2]))
         #print out_t, out_h, out_w
         pad_t = self.compute_pad(0, t)
         pad_h = self.compute_pad(1, h)
@@ -307,7 +307,11 @@ class InceptionI3d(nn.Module):
         for end_point in self.VALID_ENDPOINTS:
             if end_point in self.end_points:
                 x = self._modules[end_point](x) # use _modules to work with dataparallel
+
+        # TODO: check it
+        # print('AAAAAAa', x.shape)
         x = F.avg_pool3d(x, kernel_size=(x.shape[2], 1, 1), stride=1)
+        # x = F.avg_pool3d(x, kernel_size=(2, 1, 1), stride=1) # TODO: for export 2 for seq length = 16
         return x
 
     # def extract_features(self, x):

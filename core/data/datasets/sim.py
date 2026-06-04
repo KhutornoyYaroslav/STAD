@@ -1,28 +1,30 @@
 import os
+import torch
 import cv2 as cv
 import numpy as np
 from glob import glob
 from core.config import CfgNode
+from core.utils.ops import xyxy2xywh
 from torch.utils.data import Dataset
 from typing import Tuple, List, Optional
-from core.data.transforms.transforms import TransformInterface
-from core.utils.ops import xyxy2xywh
+from core.data.transforms import TransformInterface, build_inv_transforms
 
-
-class UCF101_24Dataset(Dataset):
-    num_classes = 24
+class SIMDataset(Dataset):
+    num_classes = 7
 
     def __init__(self,
                  cfg: CfgNode,
                  data_path: str,
                  anno_path: str,
-                 transforms: Optional[TransformInterface] = None):
+                 transforms: Optional[TransformInterface] = None,
+                 inv_transforms: Optional[TransformInterface] = None):
         self.seqs = self._parse_seqs(anno_path,
                                      data_path,
                                      cfg.DATASET.SEQUENCE_LENGTH,
                                      cfg.DATASET.SEQUENCE_STRIDE,
                                      cfg.DATASET.SEQUENCE_DILATE)
         self.transforms = transforms
+        self.inv_transforms = inv_transforms
         self.max_labels = cfg.INPUT.PAD_LABELS_TO
 
     def __len__(self):
@@ -39,15 +41,15 @@ class UCF101_24Dataset(Dataset):
         # parse seqpaths
         def get_seqpath(path: str) -> str:
             head, ssd = os.path.split(path)
-            sd = os.path.split(head)[1]
-            return os.path.join(sd, ssd)
-        seqpaths = sorted(glob(os.path.join(anno_root, "*/*")))
+            return ssd
+
+        seqpaths = sorted(glob(os.path.join(anno_root, "*")))
         seqpaths = [get_seqpath(s) for s in seqpaths]
 
         # prepare seqs
         for seqpath in seqpaths:
             annoimgs = []
-            imgs = sorted(glob(os.path.join(data_root, seqpath, "*.jpg")))
+            imgs = sorted(glob(os.path.join(data_root, seqpath, "*.png")))
             annos = sorted(glob(os.path.join(anno_root, seqpath, "*.txt")))
             for img in imgs:
                 filename = os.path.basename(img)
@@ -77,7 +79,7 @@ class UCF101_24Dataset(Dataset):
                 with open(apath, 'r') as f:
                     for i, line in enumerate(f.readlines()):
                         elements = list(map(float, line.split()))
-                        cls_idx = int(elements[0]) - 1
+                        cls_idx = int(elements[0])
                         if cls_idx < self.num_classes:
                             assert self.num_classes > cls_idx >= 0
                             cls[i][cls_idx] = 1.0
@@ -101,14 +103,29 @@ class UCF101_24Dataset(Dataset):
     def visualize(self, tick_ms: int = 0):
         for i in range(0, self.__len__()):
             item = self.__getitem__(i)
-            for img, box, cls in zip(item["img"], item["bbox"], item["cls"]):
-                img = (img.cpu().numpy() * 255).astype(np.uint8).transpose(1, 2, 0)
-                img = cv.cvtColor(img, cv.COLOR_RGB2BGR)
+
+            if self.inv_transforms:
+                item = self.inv_transforms(item)
+
+            imgs, bboxs, clss = item['img'], item['bbox'], item['cls']
+            # if isinstance(imgs, torch.Tensor):
+            #     # images to numpy
+            #     imgs = imgs.cpu().numpy()
+            #     imgs = 255 * imgs
+            #     imgs = imgs.astype(np.uint8).transpose(0, 2, 3, 1)
+            #     for img_idx in range(imgs.shape[0]):
+            #         imgs[img_idx] = cv.cvtColor(imgs[img_idx], cv.COLOR_RGB2BGR)
+            #     # boxes, classes to numpy
+            #     bboxs = bboxs.cpu().numpy()
+            #     clss = clss.cpu().numpy()
+            # elif isinstance(imgs, np.ndarray):
+            #     pass
+            # else:
+            #     raise ValueError(f"Invalid img type: {type(imgs)}")
+
+            for img, bbox, cls in zip(imgs, bboxs, clss):
                 w, h = img.shape[-2:-4:-1]
-
-                for b, c in zip(box, cls):
-                    b = b.cpu().numpy()
-
+                for b, c in zip(bbox, cls):
                     # skip empty
                     if b[2] * b[3] == 0:
                         continue
@@ -118,12 +135,12 @@ class UCF101_24Dataset(Dataset):
                     b[1::2] *= h
                     tl = b[:2] - (b[2:4] / 2)
                     br = b[:2] + (b[2:4] / 2)
-                    cv.rectangle(img, tl.astype(np.int32), br.astype(np.int32), (0, 255, 0), 2)
+                    cv.rectangle(img, tl.astype(np.int32), br.astype(np.int32), (0, 255, 0), 1)
 
                     # draw labels
-                    pt = tl.astype(np.int32) + [0, 10]
+                    pt = tl.astype(np.int32) + [2, 15]
                     for idx in np.where(c == 1.0)[0]:
-                        text = f"{idx} {c[idx]:.2f}"
+                        text = f"{idx}"
                         cv.putText(img, text, pt, cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
                         pt += [0, 10]
 

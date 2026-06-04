@@ -6,7 +6,7 @@ from glob import glob
 from typing import Dict, List, Optional
 from core.config import CfgNode
 from torch.utils.data import Dataset
-from core.data.transforms.transforms import BaseTransform
+from core.data.transforms.transforms import TransformInterface
 
 
 class CrowdHumanDataset(Dataset):
@@ -14,7 +14,7 @@ class CrowdHumanDataset(Dataset):
                  cfg: CfgNode,
                  data_path: str,
                  anno_path: str,
-                 transforms: Optional[BaseTransform] = None):
+                 transforms: Optional[TransformInterface] = None):
         self.data_root = data_path
         self.annos = self._parse_anno(anno_path)
         self.transforms = transforms
