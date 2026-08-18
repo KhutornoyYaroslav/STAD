@@ -56,10 +56,10 @@ def is_url(url: str, try_download: bool = False):
         return False
 
 
-def load_state_dict(url_or_file: str, map_location='cpu'):
+def load_state_dict(url_or_file: str, map_location: str = 'cpu', weights_only: bool = False):
     if is_url(url_or_file):
-        return torch.load(cache_url(url_or_file), map_location=map_location)
+        return torch.load(cache_url(url_or_file), map_location=map_location, weights_only=weights_only)
     elif os.path.isfile(url_or_file):
-        return torch.load(url_or_file, map_location=map_location)
+        return torch.load(url_or_file, map_location=map_location, weights_only=weights_only)
     else:
         raise ValueError(f"'url_or_file' must be url or path to file")
