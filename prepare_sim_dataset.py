@@ -11,7 +11,7 @@ from core.utils.logger import setup_logger
 _LOGGER_NAME = "DATASET PREP"
 
 
-def get_object_class(class_title: str, tags: dict) -> int:
+def get_object_class(class_title: str, tags_dict: dict) -> int:
     """
     0 - person, walking
     1 - person, scootering
@@ -20,13 +20,18 @@ def get_object_class(class_title: str, tags: dict) -> int:
     4 - person, carrying_bicycle
     5 - scooter
     6 - bicycle
+    7 - undefined
     """
     logger = logging.getLogger(_LOGGER_NAME)
 
+    class_title = class_title.lower()
+
     if class_title == "person":
-        tags_lowercase = {k.lower(): v for k, v in tags.items()}
-        if "action" in tags_lowercase:
-            tag = tags_lowercase["action"]
+        if "undefined" in tags_dict:
+            return 7
+            
+        if "action" in tags_dict:
+            tag = tags_dict["action"]
             if tag == "walking":
                 return 0
             elif tag == "scootering":
@@ -43,12 +48,11 @@ def get_object_class(class_title: str, tags: dict) -> int:
         else:
             logger.warning("Action tag not found. Use default - 'walking'.")
             return 0
+            
     elif class_title == "scooter":
         return 5
     elif class_title == "bicycle":
         return 6
-    # elif class_title == "unicycle":
-    #     return 7
     else:
         logger.warning(f"Found invalid class title: '{class_title}'")
         return None
@@ -56,11 +60,12 @@ def get_object_class(class_title: str, tags: dict) -> int:
 
 def parse_anno_objects(data: dict):
     objects = {}
-    for obj in data.get("objects"):
-        tags = {}
-        for t in obj.get("tags", []):
-            tags[t["name"]] = t["value"]
-        objects[obj["key"]] = get_object_class(obj["classTitle"], tags)
+    for obj in data.get("objects", []):
+        objects[obj["key"]] = {
+            "classTitle": obj["classTitle"],
+            # сохр список тегов объекта вместе с frame range
+            "tags": obj.get("tags", [])
+        }
     return objects
 
 
@@ -108,15 +113,37 @@ def convert_dataset(anno_path: str,
                     continue
                 for figure in frame_info.get("figures", []):
                     obj_key = figure["objectKey"]
-                    obj_cls = objects[obj_key]
+                    
+                    obj_info = objects.get(obj_key)
+                    if obj_info is None:
+                        continue
+                        
+                    class_title = obj_info["classTitle"]
+                    
+                    # фильтруем теги объекта для текущего кадра 
+                    active_tags = {}
+                    for t in obj_info["tags"]:
+                        frame_range = t.get("frameRange")
+                        if frame_range is not None:
+                            start, end = frame_range
+                            # если кадр не попадает в отрезок тега то пропускаем 
+                            if not (start <= frame_cnt <= end):
+                                continue 
+                                
+                        # сохраняем если он активен (или если он глобальный)
+                        active_tags[t["name"].lower()] = t.get("value")
+                    
+                    # сразу вычисляем класс на основе активных тегов
+                    obj_cls = get_object_class(class_title, active_tags)
 
-                    # print(obj_key, obj_cls)
-                    # assert obj_cls is not None, "Expected obj_cls is not none"
                     if obj_cls is not None:
                         x1y1, x2y2 = figure["geometry"]["points"]["exterior"]
                         with open(dst_label_file, 'a') as f:
                             f.write("%d %d %d %d %d\n" % (obj_cls, *x1y1, *x2y2))
                         anno_empty = False
+                    # print(obj_key, obj_cls)
+                    # assert obj_cls is not None, "Expected obj_cls is not none"
+                    
 
             # save image
             if not anno_empty:           
@@ -138,12 +165,12 @@ def main():
     # parse arguments
     parser = argparse.ArgumentParser(description='Supervisely To Internal Format Dataset Convertor')
     parser.add_argument('--anno-path', dest='anno_path', type=str,
-                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/datasets/2026/ppolique/*/*/ann/*.json",
+                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/datasets/tatarina/*/*/ann/*.json",
                         help="Pattern-like path to supervisely annotation files")
     parser.add_argument('--video-path', dest='video_path', type=str,
-                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/datasets/2026/ppolique/*/*/video/*.mp4",
+                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/datasets/tatarina/*/*/video/*.mp4",
                         help="Pattern-like path to video files")
-    parser.add_argument('--dst-root', dest='dst_root', type=str, default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1/ppolique",
+    parser.add_argument('--dst-root', dest='dst_root', type=str, default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/dataset_1/PADv2/",
                         help="Path to save result dataset")
     args = parser.parse_args()
 

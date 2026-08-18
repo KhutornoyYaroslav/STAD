@@ -66,11 +66,11 @@ def main():
     # parse arguments
     parser = argparse.ArgumentParser(description='Spatio Temporal Action Detection Dataset Statistics')
     parser.add_argument("-d", "--data-path", dest="data_path", required=False, type=str,
-                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1_split/train"
+                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/sim_videos/*/"
                         # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1/ppolique"
                         )
     parser.add_argument("-a", "--anno-path", dest="anno_path", required=False, type=str,
-                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1_split/train"
+                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/sim_videos/*/"
                         # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1/ppolique"
                         )
     parser.add_argument("-n", "--dataloader-name", dest="dataloader_name", required=False, type=str,
@@ -87,7 +87,7 @@ def main():
     cfg.freeze()
 
     # create dataset
-    dataset = build_dataset(cfg, args.data_path, args.anno_path, None)
+    dataset = build_dataset(cfg, args.data_path, args.anno_path, None, None)
     print(f"Dataset size: {len(dataset)} sequences")
 
     # process

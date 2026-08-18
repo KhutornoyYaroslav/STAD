@@ -10,7 +10,7 @@ from typing import Tuple, List, Optional
 from core.data.transforms import TransformInterface, build_inv_transforms
 
 class SIMDataset(Dataset):
-    num_classes = 7
+    num_classes = 8 # TODO: move to config
 
     def __init__(self,
                  cfg: CfgNode,

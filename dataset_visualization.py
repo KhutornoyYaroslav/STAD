@@ -12,12 +12,12 @@ def main():
     # parse arguments
     parser = argparse.ArgumentParser(description='Spatio Temporal Action Detection Dataset Visualization')
     parser.add_argument("-d", "--data-path", dest="data_path", required=False, type=str,
-                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1/ppolique"
-                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1_split/train"
+                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/dataset_1/check/"
+                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1_split/train"
                         )
     parser.add_argument("-a", "--anno-path", dest="anno_path", required=False, type=str,
-                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1/ppolique"
-                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1_split/train"
+                        default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/dataset_1/check/"
+                        # default="/media/yaroslav/SSD/khutornoy/data/sim_videos/outputs/2026/PADv1_split/train"
                         )
     parser.add_argument("-t", "--istrain", dest="istrain", required=False, type=str2bool,
                         default=False)
